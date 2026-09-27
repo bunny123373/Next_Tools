@@ -30,9 +30,14 @@ export default function TimestampConverterWorkspace() {
   // Gate every clock-dependent value behind mount, so the server HTML and the
   // first client render agree and React never reports a hydration mismatch.
   React.useEffect(() => {
-    setNow(Date.now());
+    // The first tick is deferred so the server-rendered HTML and the first
+    // client render agree; everything clock-dependent stays "—" until then.
+    const start = setTimeout(() => setNow(Date.now()), 0);
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(start);
+      clearInterval(timer);
+    };
   }, []);
 
   const parsed = React.useMemo(() => (value.trim() === "" ? null : parseTimestampInput(value, unit)), [value, unit]);

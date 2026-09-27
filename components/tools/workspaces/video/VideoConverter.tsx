@@ -70,8 +70,16 @@ export default function VideoConverterWorkspace() {
   const sourceUrl = useObjectUrl(source);
 
   const [support, setSupport] = React.useState<MediaSupport | null>(null);
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [metaError, setMetaError] = React.useState<string | null>(null);
+  // Probe results are tagged with the file they describe, so changing the file
+  // invalidates them by derivation rather than by resetting state in an effect.
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const metaError = probe.key === probeKey ? probe.error : null;
 
   const [formatId, setFormatId] = React.useState("webm-vp9");
   const [scale, setScale] = React.useState(1);
@@ -95,24 +103,32 @@ export default function VideoConverterWorkspace() {
   }, []);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setMetaError(null);
     if (!source) return;
+    let alive = true;
     void readVideoMeta(source)
-      .then((value) => alive && setMeta(value))
+      .then((value) => {
+        if (alive) setProbe({ key: probeKey, meta: value, error: null });
+      })
       .catch((error: unknown) => {
-        if (alive) setMetaError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
 
-  React.useEffect(() => {
-    const preset = videoFormatById(formatId).bitrates;
-    if (!preset.includes(kbps)) setKbps(preset[Math.min(3, preset.length - 1)] ?? preset[0]);
-  }, [formatId, kbps]);
+  // Keep the bitrate inside the chosen format's supported range, derived
+  // during render rather than by writing state back from an effect.
+  const format = videoFormatById(formatId);
+  const effectiveKbps = format.bitrates.includes(kbps)
+    ? kbps
+    : (format.bitrates[Math.min(3, format.bitrates.length - 1)] ?? format.bitrates[0]);
 
   const picked = React.useMemo(
     () => (support ? pickVideoMime(videoFormatById(formatId).mime, support) : null),
@@ -121,11 +137,11 @@ export default function VideoConverterWorkspace() {
 
   const outWidth = meta ? even(meta.width * scale) : 0;
   const outHeight = meta ? even(meta.height * scale) : 0;
-  const estimate = meta ? estimateBytes(kbps, keepAudio ? AUDIO_KBPS : 0, meta.duration) : 0;
+  const estimate = meta ? estimateBytes(effectiveKbps, keepAudio ? AUDIO_KBPS : 0, meta.duration) : 0;
 
   const options = React.useMemo<Options>(
-    () => ({ formatId, scale, kbps, fps, keepAudio }),
-    [formatId, scale, kbps, fps, keepAudio],
+    () => ({ formatId, scale, kbps: effectiveKbps, fps, keepAudio }),
+    [formatId, scale, effectiveKbps, fps, keepAudio],
   );
 
   const transform = React.useCallback(
@@ -259,7 +275,7 @@ export default function VideoConverterWorkspace() {
                   <Stat label="Source" value={`${meta.width} x ${meta.height}`} />
                   <Stat label="Output" value={outWidth ? `${outWidth} x ${outHeight}` : "-"} hint="even dimensions" />
                   <Stat label="Duration" value={formatDuration(meta.duration)} />
-                  <Stat label="Size estimate" value={formatBytes(estimate)} hint={`${kbps} kbps video`} tone="brand" />
+                  <Stat label="Size estimate" value={formatBytes(estimate)} hint={`${effectiveKbps} kbps video`} tone="brand" />
                 </dl>
               ) : null}
 
@@ -358,7 +374,7 @@ export default function VideoConverterWorkspace() {
                 )}
               </Field>
 
-              <Field label={`Target bitrate - ${kbps} kbps`} hint="Higher means closer to the source quality.">
+              <Field label={`Target bitrate - ${effectiveKbps} kbps`} hint="Higher means closer to the source quality.">
                 {({ id, describedBy }) => (
                   <Slider
                     id={id}
@@ -366,7 +382,7 @@ export default function VideoConverterWorkspace() {
                     min={200}
                     max={10000}
                     step={100}
-                    value={kbps}
+                    value={effectiveKbps}
                     onChange={(event) => setKbps(Number(event.target.value))}
                   />
                 )}

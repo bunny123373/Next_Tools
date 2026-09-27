@@ -4,9 +4,8 @@ import * as React from "react";
 import { AlertTriangle, Binary, Eraser, ImageIcon } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
-import { Field, Segmented, Stat, Textarea } from "@/components/ui/form";
-import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";
-import { Notice, ToolEmptyState } from "@/components/tools/states";
+import { Segmented, Stat, Textarea } from "@/components/ui/form";
+import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";import { Notice, ToolEmptyState } from "@/components/tools/states";
 import { cn } from "@/lib/utils/cn";
 import { formatBytes, formatNumber } from "@/lib/utils/format";
 import { toast } from "@/lib/utils/toast";
@@ -26,20 +25,15 @@ type View = "text" | "hex" | "image";
 export default function Base64DecoderWorkspace() {
   const [value, setValue] = React.useState(SAMPLE);
   const [view, setView] = React.useState<View>("text");
-  const [dataUri, setDataUri] = React.useState<string | null>(null);
 
   const decoded = React.useMemo(() => (value.trim() === "" ? null : decodeBase64(value)), [value]);
   const ok = decoded?.ok === true ? (decoded as Base64DecodeOk) : null;
   const error = decoded && !decoded.ok ? (decoded as Base64DecodeError) : null;
 
-  const dataUriValue = React.useMemo(
+  const dataUri = React.useMemo(
     () => (ok && ok.mime && ok.mime !== "text/plain;charset=utf-8" ? `data:${ok.mime};base64,${bytesToBase64(ok.bytes)}` : null),
     [ok],
   );
-
-  React.useEffect(() => {
-    setDataUri(dataUriValue);
-  }, [dataUriValue]);
 
   const loadSample = (): void => {
     setValue(SAMPLE);
@@ -257,7 +251,7 @@ function DataUriPreview({ dataUri, mime }: { dataUri: string; mime: string }) {
 
   return (
     <figure className="flex flex-col gap-2 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-3">
-      {/* Decoded user data, never remote content — but it is still an image, so alt is required. */}
+      {/* Decoded user data, not remote content. eslint-disable-next-line @next/next/no-img-element -- a blob: URL of bytes already in the page; next/image would add nothing and cannot take a data: source here. */}
       <img
         src={url}
         alt="The image these Base64 bytes decoded to"

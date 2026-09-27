@@ -4,15 +4,12 @@ import * as React from "react";
 import { Check, Contrast, Copy, Eraser, FlaskConical, ImageDown, Palette, TriangleAlert, X } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
-import { Checkbox, Field, Input, Slider, Stat } from "@/components/ui/form";
+import { Field, Input, Slider, Stat } from "@/components/ui/form";
 import { CopyButton } from "@/components/tools/DownloadButton";
-import { Notice, ToolEmptyState } from "@/components/tools/states";
+import { Notice } from "@/components/tools/states";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "@/lib/utils/toast";
-import { formatNumber } from "@/lib/utils/format";
-import {
-  clamp,
-} from "@/lib/utils/format";
+import { clamp } from "@/lib/utils/format";
 import {
   cmykToRgb,
   compositeOn,
@@ -66,25 +63,6 @@ export default function ColorPickerWorkspace() {
     [hue, saturation, value, alpha],
   );
 
-  // Keep every representation in step, whichever one the visitor edited.
-  React.useEffect(() => {
-    setHexDraft(rgbaToHex(base, alpha < 1));
-    const { r, g, b } = base;
-    setRgbDraft({ r: String(Math.round(r)), g: String(Math.round(g)), b: String(Math.round(b)) });
-    const hsl = rgbToHsl(base);
-    setHslDraft({ h: hsl.h.toFixed(1), s: hsl.s.toFixed(1), l: hsl.l.toFixed(1) });
-    const hsv = rgbToHsv(base);
-    setHsvDraft({ h: hsv.h.toFixed(1), s: hsv.s.toFixed(1), v: hsv.v.toFixed(1) });
-    const cmyk = rgbToCmyk(base);
-    setCmykDraft({
-      c: cmyk.c.toFixed(1),
-      m: cmyk.m.toFixed(1),
-      y: cmyk.y.toFixed(1),
-      k: cmyk.k.toFixed(1),
-    });
-    const oklch = rgbToOklch(base);
-    setOklchDraft({ l: oklch.l.toFixed(2), c: oklch.c.toFixed(2), h: oklch.h.toFixed(1) });
-  }, [base, alpha]);
 
   const backdrop = React.useMemo<Rgba>(() => {
     if (background === "dark") return DEFAULT_DARK;
@@ -96,6 +74,35 @@ export default function ColorPickerWorkspace() {
   const ratio = React.useMemo(() => contrastRatio(flat, backdrop), [flat, backdrop]);
   const verdict = React.useMemo(() => wcagVerdict(ratio), [ratio]);
 
+  /**
+   * One entry point for every colour change. HSV is the source of truth, and
+   * each of the other five fields is rewritten from it in the same call — so
+   * there is never a window where two formats disagree, and no effect needed to
+   * reconcile them.
+   */
+  const pushRgb = React.useCallback((rgb: { r: number; g: number; b: number }, alphaValue: number): void => {
+    const color: Rgba = { ...rgb, a: alphaValue };
+    const hsv = rgbToHsv(color);
+    setHue(hsv.h);
+    setSaturation(hsv.s);
+    setValue(hsv.v);
+    setAlpha(alphaValue);
+    setHexDraft(rgbaToHex(color, alphaValue < 1));
+    setRgbDraft({ r: String(Math.round(rgb.r)), g: String(Math.round(rgb.g)), b: String(Math.round(rgb.b)) });
+    const hsl = rgbToHsl(color);
+    setHslDraft({ h: hsl.h.toFixed(1), s: hsl.s.toFixed(1), l: hsl.l.toFixed(1) });
+    setHsvDraft({ h: hsv.h.toFixed(1), s: hsv.s.toFixed(1), v: hsv.v.toFixed(1) });
+    const cmyk = rgbToCmyk(color);
+    setCmykDraft({
+      c: cmyk.c.toFixed(1),
+      m: cmyk.m.toFixed(1),
+      y: cmyk.y.toFixed(1),
+      k: cmyk.k.toFixed(1),
+    });
+    const oklch = rgbToOklch(color);
+    setOklchDraft({ l: oklch.l.toFixed(2), c: oklch.c.toFixed(2), h: oklch.h.toFixed(1) });
+  }, []);
+
   const remember = React.useCallback((color: Rgba) => {
     setRecent((current) => {
       const hex = rgbaToHex(color);
@@ -103,22 +110,21 @@ export default function ColorPickerWorkspace() {
     });
   }, []);
 
-  React.useEffect(() => {
-    remember(base);
-  }, [base, remember]);
+  /** Any settled change also lands in the recent swatches. */
+  const commit = React.useCallback(
+    (rgb: { r: number; g: number; b: number }, alphaValue: number) => {
+      pushRgb(rgb, alphaValue);
+      remember({ ...rgb, a: alphaValue });
+    },
+    [pushRgb, remember],
+  );
 
-  const setFromHsv = (nextHue: number, nextSaturation: number, nextValue: number): void => {
-    const rgb = hsvToRgb(nextHue, nextSaturation, nextValue);
-    setHue(nextHue);
-    setSaturation(nextSaturation);
-    setValue(nextValue);
-    setHexDraft(rgbaToHex({ ...rgb, a: alpha }));
-  };
-
-  // The drag handler is registered once on pointerdown, so it needs the hue it
-  // started with rather than a value that changes on every move.
-  const hueRef = React.useRef(hue);
-  hueRef.current = hue;
+  const setFromHsv = React.useCallback(
+    (nextHue: number, nextSaturation: number, nextValue: number): void => {
+      pushRgb(hsvToRgb(nextHue, nextSaturation, nextValue), alpha);
+    },
+    [pushRgb, alpha],
+  );
 
   const fromHex = (raw: string): void => {
     const parsed = parseHexColor(raw);
@@ -126,20 +132,13 @@ export default function ColorPickerWorkspace() {
       toast.warning("Not a hex colour", "Use 3, 4, 6 or 8 hex digits, for example #1a2b3c.");
       return;
     }
-    const hsv = rgbToHsv(parsed);
-    setHue(hsv.h);
-    setSaturation(hsv.s);
-    setValue(hsv.v);
-    setAlpha(parsed.a);
+    commit(parsed, parsed.a);
   };
 
   const fromRgb = (raw: { r: string; g: string; b: string }): void => {
     const [r, g, b] = [raw.r, raw.g, raw.b].map((entry) => Number(entry));
-    if ([r, g, b].some((entry) => !Number.isFinite(entry) || entry < 0 || entry > 255)) return;
-    const hsv = rgbToHsv({ r, g, b, a: 1 });
-    setHue(hsv.h);
-    setSaturation(hsv.s);
-    setValue(hsv.v);
+    if (![r, g, b].every((entry) => Number.isFinite(entry) && entry >= 0 && entry <= 255)) return;
+    pushRgb({ r, g, b }, alpha);
   };
 
   const fromHsl = (raw: { h: string; s: string; l: string }): void => {
@@ -147,21 +146,13 @@ export default function ColorPickerWorkspace() {
     const s = Number(raw.s);
     const l = Number(raw.l);
     if (![h, s, l].every(Number.isFinite)) return;
-    const rgb = hslToRgb(h, clamp(s, 0, 100), clamp(l, 0, 100));
-    const hsv = rgbToHsv({ ...rgb, a: 1 });
-    setHue(hsv.h);
-    setSaturation(hsv.s);
-    setValue(hsv.v);
+    pushRgb(hslToRgb(h, clamp(s, 0, 100), clamp(l, 0, 100)), alpha);
   };
 
   const fromCmyk = (raw: { c: string; m: string; y: string; k: string }): void => {
     const [c, m, y, k] = [raw.c, raw.m, raw.y, raw.k].map((entry) => Number(entry));
     if (![c, m, y, k].every(Number.isFinite)) return;
-    const rgb = cmykToRgb(clamp(c, 0, 100), clamp(m, 0, 100), clamp(y, 0, 100), clamp(k, 0, 100));
-    const hsv = rgbToHsv({ ...rgb, a: 1 });
-    setHue(hsv.h);
-    setSaturation(hsv.s);
-    setValue(hsv.v);
+    pushRgb(cmykToRgb(clamp(c, 0, 100), clamp(m, 0, 100), clamp(y, 0, 100), clamp(k, 0, 100)), alpha);
   };
 
   const fromOklch = (raw: { l: string; c: string; h: string }): void => {
@@ -169,11 +160,15 @@ export default function ColorPickerWorkspace() {
     const c = Number(raw.c);
     const h = Number(raw.h);
     if (![l, c, h].every(Number.isFinite)) return;
-    const rgb = oklchToRgb(l, c, h);
-    const hsv = rgbToHsv({ ...rgb, a: 1 });
-    setHue(hsv.h);
-    setSaturation(hsv.s);
-    setValue(hsv.v);
+    pushRgb(oklchToRgb(l, c, h), alpha);
+  };
+
+  const reset = (): void => {
+    setHue(0);
+    setSaturation(0);
+    setValue(100);
+    setAlpha(1);
+    commit({ r: 255, g: 255, b: 255 }, 1);
   };
 
   const onDrop = async (file: File): Promise<void> => {
@@ -228,12 +223,13 @@ export default function ColorPickerWorkspace() {
                     const rect = element.getBoundingClientRect();
                     const x = (clientX - rect.left) / rect.width;
                     const y = (clientY - rect.top) / rect.height;
-                    setFromHsv(hueRef.current, clamp(x, 0, 1) * 100, clamp(1 - y, 0, 1) * 100);
+                    setFromHsv(hue, clamp(x, 0, 1) * 100, clamp(1 - y, 0, 1) * 100);
                   };
                   apply(event.clientX, event.clientY);
                   const onMove = (pointerEvent: PointerEvent): void => apply(pointerEvent.clientX, pointerEvent.clientY);
                   const onUp = (): void => {
                     setDragging(false);
+                    commit(hsvToRgb(hue, saturation, value), alpha);
                     window.removeEventListener("pointermove", onMove);
                     window.removeEventListener("pointerup", onUp);
                   };
@@ -249,8 +245,7 @@ export default function ColorPickerWorkspace() {
                 }}
                 role="application"
                 tabIndex={0}
-                aria-label="Saturation and brightness area. Use the arrow keys to adjust."
-                aria-valuetext={`saturation ${Math.round(saturation)} percent, brightness ${Math.round(value)} percent`}
+                aria-label={`Saturation and brightness area, currently ${Math.round(saturation)} percent saturation and ${Math.round(value)} percent brightness. Use the arrow keys to adjust.`}
               >
                 <span
                   aria-hidden="true"
@@ -294,7 +289,7 @@ export default function ColorPickerWorkspace() {
                   min={0}
                   max={100}
                   value={Math.round(alpha * 100)}
-                  onChange={(event) => setAlpha(Number(event.target.value) / 100)}
+                  onChange={(event) => pushRgb(hsvToRgb(hue, saturation, value), Number(event.target.value) / 100)}
                 />
               )}
             </Field>
@@ -354,6 +349,7 @@ export default function ColorPickerWorkspace() {
                         setHexDraft(event.target.value);
                         fromHex(event.target.value);
                       }}
+                      onBlur={() => fromHex(hexDraft)}
                       spellCheck={false}
                       className="font-mono uppercase"
                     />
@@ -495,29 +491,14 @@ export default function ColorPickerWorkspace() {
             <div className="flex flex-wrap items-center gap-1.5">
               <CopyButton value={rgbaToHex(base, alpha < 1).toUpperCase()} what="HEX copied" size="sm" variant="secondary" />
               <CopyButton value={rgbaToCss(base)} what="CSS copied" size="sm" variant="secondary" />
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setHue(0);
-                  setSaturation(0);
-                  setValue(100);
-                  setAlpha(1);
-                }}
-              >
+              <Button size="sm" variant="ghost" onClick={reset}>
                 <Eraser aria-hidden="true" className="size-3.5" />
                 Reset to white
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => {
-                  setHue(4);
-                  setSaturation(100);
-                  setValue(100);
-                  setAlpha(1);
-                  toast.info("Back to the brand red");
-                }}
+                onClick={() => commit(hsvToRgb(4, 100, 100), 1)}
               >
                 <FlaskConical aria-hidden="true" className="size-3.5" />
                 Brand red

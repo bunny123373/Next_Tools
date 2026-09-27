@@ -60,9 +60,14 @@ export default function JwtDecoderWorkspace() {
   const jwt = decoded?.ok === true ? decoded.jwt : null;
 
   React.useEffect(() => {
-    setNow(Date.now());
+    // The first tick is deferred so the server-rendered HTML and the first
+    // client render agree; everything clock-dependent stays "—" until then.
+    const start = setTimeout(() => setNow(Date.now()), 0);
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(start);
+      clearInterval(timer);
+    };
   }, []);
 
   const verify = React.useCallback(
@@ -82,8 +87,16 @@ export default function JwtDecoderWorkspace() {
   );
 
   React.useEffect(() => {
-    if (jwt && secret) void verify(jwt, secret);
-    else setVerification({ status: "not-attempted" });
+    if (!jwt || !secret) {
+      setVerification({ status: "not-attempted" });
+      return;
+    }
+    // Deferred and debounced: an HMAC over a pasted secret is real work, and a
+    // fast typist should not queue one per keystroke.
+    const timer = setTimeout(() => {
+      void verify(jwt, secret);
+    }, 200);
+    return () => clearTimeout(timer);
   }, [jwt, secret, verify]);
 
   const countdowns = React.useMemo(() => (jwt && now > 0 ? jwtCountdowns(jwt, now) : []), [jwt, now]);

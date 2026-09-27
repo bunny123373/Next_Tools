@@ -463,7 +463,6 @@ export default function VideoTrimmerWorkspace() {
         {sourceUrl && meta && duration > 0 ? (
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-[var(--text-ink)]">Preview the selection</h3>
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-supplied video, no captions apply */}
             <video
               ref={playerRef}
               src={sourceUrl}

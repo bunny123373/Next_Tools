@@ -72,11 +72,21 @@ export default function VideoResizerWorkspace() {
   const sourceUrl = useObjectUrl(source);
 
   const [support, setSupport] = React.useState<MediaSupport | null>(null);
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [metaError, setMetaError] = React.useState<string | null>(null);
+  // Probe results are tagged with the file they describe, so changing the file
+  // invalidates them by derivation rather than by resetting state in an effect.
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const metaError = probe.key === probeKey ? probe.error : null;
 
-  const [width, setWidth] = React.useState(0);
-  const [height, setHeight] = React.useState(0);
+  // Target size, stored against the file it was derived from so picking a new
+  // file starts from a sensible 50% default without a reset effect.
+  const [sizing, setSizing] = React.useState<{ key: string; width: number; height: number } | null>(null);
+  const sizingValue = sizing && sizing.key === probeKey ? sizing : null;
   const [locked, setLocked] = React.useState(true);
   const [formatId, setFormatId] = React.useState("webm-vp9");
   const [fps, setFps] = React.useState(30);
@@ -96,24 +106,30 @@ export default function VideoResizerWorkspace() {
   }, []);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setMetaError(null);
     if (!source) return;
+    let alive = true;
     void readVideoMeta(source)
       .then((value) => {
         if (!alive) return;
-        setMeta(value);
-        setWidth(even(value.width * 0.5));
-        setHeight(even(value.height * 0.5));
+        setProbe({ key: probeKey, meta: value, error: null });
+        setSizing({ key: probeKey, width: even(value.width * 0.5), height: even(value.height * 0.5) });
       })
       .catch((error: unknown) => {
-        if (alive) setMetaError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
+
+  const width = sizingValue?.width ?? 0;
+  const height = sizingValue?.height ?? 0;
 
   const picked = React.useMemo(
     () => (support ? pickVideoMime(videoFormatById(formatId).mime, support) : null),
@@ -128,32 +144,31 @@ export default function VideoResizerWorkspace() {
   const setWidthKeepingRatio = React.useCallback(
     (next: number) => {
       const safe = Math.max(2, Math.round(next));
-      setWidth(even(safe));
-      if (locked && meta && meta.height > 0) {
-        setHeight(even((safe * meta.height) / meta.width));
-      }
+      const nextHeight = locked && meta && meta.height > 0 ? even((safe * meta.height) / meta.width) : height;
+      setSizing({ key: probeKey, width: even(safe), height: nextHeight });
     },
-    [locked, meta],
+    [locked, meta, height, probeKey],
   );
 
   const setHeightKeepingRatio = React.useCallback(
     (next: number) => {
       const safe = Math.max(2, Math.round(next));
-      setHeight(even(safe));
-      if (locked && meta && meta.width > 0) {
-        setWidth(even((safe * meta.width) / meta.height));
-      }
+      const nextWidth = locked && meta && meta.width > 0 ? even((safe * meta.width) / meta.height) : width;
+      setSizing({ key: probeKey, width: nextWidth, height: even(safe) });
     },
-    [locked, meta],
+    [locked, meta, width, probeKey],
   );
 
   const applyScale = React.useCallback(
     (percent: number) => {
       if (!meta) return;
-      setWidth(even((meta.width * percent) / 100));
-      setHeight(even((meta.height * percent) / 100));
+      setSizing({
+        key: probeKey,
+        width: even((meta.width * percent) / 100),
+        height: even((meta.height * percent) / 100),
+      });
     },
-    [meta],
+    [meta, probeKey],
   );
 
   const options = React.useMemo<Options>(
@@ -367,9 +382,12 @@ export default function VideoResizerWorkspace() {
                         variant="secondary"
                         onClick={() => {
                           if (!meta) return;
-                          const nextHeight = Math.min(preset.height, meta.height);
-                          setHeight(even(nextHeight));
-                          setWidth(even((nextHeight * meta.width) / meta.height));
+                          const nextHeight = even(Math.min(preset.height, meta.height));
+                          setSizing({
+                            key: probeKey,
+                            width: even((nextHeight * meta.width) / meta.height),
+                            height: nextHeight,
+                          });
                         }}
                         disabled={!meta || isRunning}
                       >

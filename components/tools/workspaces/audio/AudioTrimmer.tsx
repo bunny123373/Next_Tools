@@ -510,7 +510,6 @@ export default function AudioTrimmerWorkspace() {
         {single && sourceUrl && duration > 0 ? (
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-[var(--text-ink)]">Preview the selection</h3>
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-supplied audio, no captions apply */}
             <audio
               ref={playerRef}
               src={sourceUrl}

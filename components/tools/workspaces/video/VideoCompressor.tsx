@@ -62,8 +62,16 @@ export default function VideoCompressorWorkspace() {
   const sourceUrl = useObjectUrl(source);
 
   const [support, setSupport] = React.useState<MediaSupport | null>(null);
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [metaError, setMetaError] = React.useState<string | null>(null);
+  // Probe results are tagged with the file they describe, so changing the file
+  // invalidates them by derivation rather than by resetting state in an effect.
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const metaError = probe.key === probeKey ? probe.error : null;
 
   const [formatId, setFormatId] = React.useState("webm-vp9");
   const [scale, setScale] = React.useState(0.5);
@@ -87,26 +95,30 @@ export default function VideoCompressorWorkspace() {
   }, []);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setMetaError(null);
     if (!source) return;
+    let alive = true;
     void readVideoMeta(source)
       .then((value) => {
-        if (alive) setMeta(value);
+        if (alive) setProbe({ key: probeKey, meta: value, error: null });
       })
       .catch((error: unknown) => {
-        if (alive) setMetaError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
 
-  React.useEffect(() => {
-    const preset = videoFormatById(formatId).bitrates;
-    if (!preset.includes(kbps)) setKbps(preset[2] ?? preset[0]);
-  }, [formatId, kbps]);
+  // Keep the bitrate inside the chosen format's supported range, derived
+  // during render rather than by writing state back from an effect.
+  const format = videoFormatById(formatId);
+  const effectiveKbps = format.bitrates.includes(kbps) ? kbps : (format.bitrates[2] ?? format.bitrates[0]);
 
   const picked = React.useMemo(
     () => (support ? pickVideoMime(videoFormatById(formatId).mime, support) : null),
@@ -115,12 +127,12 @@ export default function VideoCompressorWorkspace() {
 
   const outWidth = meta ? even(meta.width * scale) : 0;
   const outHeight = meta ? even(meta.height * scale) : 0;
-  const estimate = meta ? estimateBytes(kbps, keepAudio ? AUDIO_KBPS : 0, meta.duration) : 0;
+  const estimate = meta ? estimateBytes(effectiveKbps, keepAudio ? AUDIO_KBPS : 0, meta.duration) : 0;
   const willGrow = Boolean(source && estimate > 0 && estimate >= source.size);
 
   const options = React.useMemo<Options>(
-    () => ({ formatId, scale, kbps, fps, keepAudio }),
-    [formatId, scale, kbps, fps, keepAudio],
+    () => ({ formatId, scale, kbps: effectiveKbps, fps, keepAudio }),
+    [formatId, scale, effectiveKbps, fps, keepAudio],
   );
 
   const transform = React.useCallback(
@@ -257,7 +269,7 @@ export default function VideoCompressorWorkspace() {
                   <Stat
                     label="Output estimate"
                     value={formatBytes(estimate)}
-                    hint={`${outWidth} x ${outHeight} at ${kbps} kbps`}
+                    hint={`${outWidth} x ${outHeight} at ${effectiveKbps} kbps`}
                     tone={willGrow ? "default" : "success"}
                   />
                 </dl>
@@ -265,7 +277,7 @@ export default function VideoCompressorWorkspace() {
 
               {willGrow ? (
                 <Notice tone="warning" icon={<TriangleAlert className="size-4" />} title="This will not shrink the file.">
-                  At {kbps} kbps the estimate is {formatBytes(estimate)}, which is larger than the{" "}
+                  At {effectiveKbps} kbps the estimate is {formatBytes(estimate)}, which is larger than the{" "}
                   {formatBytes(files[0]?.size ?? 0)} input. Drop the resolution or the bitrate if you want a smaller file.
                 </Notice>
               ) : null}
@@ -339,7 +351,7 @@ export default function VideoCompressorWorkspace() {
               </Field>
 
               <Field
-                label={`Target bitrate - ${kbps} kbps`}
+                label={`Target bitrate - ${effectiveKbps} kbps`}
                 hint="MediaRecorder treats this as a target, not a guarantee."
               >
                 {({ id, describedBy }) => (
@@ -349,7 +361,7 @@ export default function VideoCompressorWorkspace() {
                     min={100}
                     max={8000}
                     step={100}
-                    value={kbps}
+                    value={effectiveKbps}
                     onChange={(event) => setKbps(Number(event.target.value))}
                   />
                 )}

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Copy, FileCode, Hash, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
-import { Checkbox, Field, Segmented, Stat, Textarea } from "@/components/ui/form";
+import { Field, Segmented, Stat, Textarea } from "@/components/ui/form";
 import { FileDropzone } from "@/components/tools/FileDropzone";
 import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";
 import { Notice, ToolEmptyState } from "@/components/tools/states";
@@ -64,8 +64,13 @@ export default function HashGeneratorWorkspace() {
     [],
   );
 
+  // Debounced rather than run inline: hashing is not free, and a short delay
+  // keeps a fast typist from queueing a digest per keystroke.
   React.useEffect(() => {
-    void run(source === "text" ? utf8Encode(text) : bytes, selected);
+    const timer = setTimeout(() => {
+      void run(source === "text" ? utf8Encode(text) : bytes, selected);
+    }, 120);
+    return () => clearTimeout(timer);
   }, [text, bytes, source, selected, run]);
 
   const onFiles = React.useCallback((incoming: File[]) => {
@@ -109,7 +114,7 @@ export default function HashGeneratorWorkspace() {
       <div className="flex flex-col gap-4">
         <div className="grid gap-3 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-3 sm:grid-cols-2">
           <Field label="Hash what">
-            {({ id }) => (
+            {() => (
               <Segmented
                 label="Hash what"
                 value={source}

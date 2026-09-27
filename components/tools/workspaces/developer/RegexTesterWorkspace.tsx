@@ -4,7 +4,7 @@ import * as React from "react";
 import { Eraser, FlaskConical, Plus, Regex, Replace, TriangleAlert, Zap } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
-import { Checkbox, Field, Input, Segmented, Stat, Textarea } from "@/components/ui/form";
+import { Checkbox, Field, Input, Stat, Textarea } from "@/components/ui/form";
 import { CopyButton } from "@/components/tools/DownloadButton";
 import { Notice, ToolEmptyState } from "@/components/tools/states";
 import { cn } from "@/lib/utils/cn";

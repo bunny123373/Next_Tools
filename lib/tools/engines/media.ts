@@ -1,3 +1,9 @@
+/*
+ * The gifenc declaration lives in ./media.d.ts and is pulled into the program
+ * by the reference below: this project's `tsconfig.json` uses an extensionless
+ * TypeScript glob for sources, which does not match standalone `.d.ts` files.
+ */
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="./media.d.ts" />
 /**
  * Shared browser media engine — Web Audio, canvas and MediaRecorder.
@@ -1069,8 +1075,10 @@ export async function encodeMp3(
   kbps: number,
   onProgress?: (percent: number) => void,
 ): Promise<Blob> {
-  const module = (await import("@breezystack/lamejs")) as unknown;
-  const ctor = (module as { Mp3Encoder?: new (c: number, r: number, k: number) => Mp3EncoderLike })
+  // `module` is a reserved identifier in bundler runtimes, so the namespace
+  // object gets a different name here.
+  const lameModule = (await import("@breezystack/lamejs")) as unknown;
+  const ctor = (lameModule as { Mp3Encoder?: new (c: number, r: number, k: number) => Mp3EncoderLike })
     .Mp3Encoder;
   if (typeof ctor !== "function") {
     throw new Error("The MP3 encoder could not be loaded. Check your connection and try again.");
@@ -1462,7 +1470,6 @@ export function runCanvasRecorder(options: TranscodeOptions): TranscodeRun {
       const mediaSpan = end - start;
 
       // ---------------------------------------------------------------- audio
-      let audioIncluded = false;
       if (options.includeAudio !== false) {
         try {
           const context = createAudioContext();
@@ -1476,7 +1483,6 @@ export function runCanvasRecorder(options: TranscodeOptions): TranscodeRun {
           mute.connect(context.destination);
           await context.resume();
           if (context.state === "running" && destination.stream.getAudioTracks().length > 0) {
-            audioIncluded = true;
             audioDestination = destination;
             cleanup.push(() => {
               source.disconnect();
@@ -1484,7 +1490,7 @@ export function runCanvasRecorder(options: TranscodeOptions): TranscodeRun {
             });
           }
         } catch {
-          audioIncluded = false;
+          audioDestination = null;
         }
       }
 

@@ -32,7 +32,10 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   loading?: boolean;
   /** Renders a stretched <a> for links. Pass `href` and it becomes navigation. */
   href?: string;
-  /** Marks a destructive/irreversible action for assistive tech. */
+  /** Marks a destructive/irreversible action. Exposed as `data-destructive`
+   *  for styling and test hooks — there is deliberately no `aria-destructive`,
+   *  because ARIA defines no such attribute. The accessible name carries the
+   *  meaning instead ("Delete request", "Clear favourites"). */
   destructive?: boolean;
   /** Only meaningful with `href`. Adds `rel="noopener noreferrer"` for _blank. */
   target?: "_blank" | "_self" | "_parent" | "_top";
@@ -93,7 +96,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       className={classes}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      aria-destructive={destructive || undefined}
+      data-destructive={destructive || undefined}
       {...props}
     >
       {content}

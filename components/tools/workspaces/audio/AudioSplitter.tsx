@@ -555,7 +555,6 @@ export default function AudioSplitterWorkspace() {
                 {results.map((item, index) => (
                   <li key={item.filename} className="flex flex-col gap-1.5">
                     {partUrls[index] ? (
-                      /* eslint-disable-next-line jsx-a11y/media-has-caption -- tool output, no captions apply */
                       <audio controls src={partUrls[index] ?? undefined} className="h-9 w-full" />
                     ) : null}
                     <span className="truncate text-[11px] text-[var(--text-muted)]">

@@ -51,3 +51,8 @@ yarn-error.log*
 # Build/typecheck logs
 .build-log.txt
 .tsc-errors.txt
+
+# Local dev/probe logs
+.dev.log
+.next/
+*.local.log

@@ -93,7 +93,7 @@ export default function Base64EncoderWorkspace() {
         <div className="rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-3">
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Alphabet" hint={VARIANT_HINT[variant]}>
-              {({ id, describedBy }) => (
+              {() => (
                 <Segmented
                   label="Alphabet"
                   value={variant}
@@ -109,7 +109,7 @@ export default function Base64EncoderWorkspace() {
               )}
             </Field>
             <Field label="Line width" hint="0 means one unbroken line.">
-              {({ id, describedBy }) => (
+              {() => (
                 <Select
                   id={id}
                   aria-describedby={describedBy}
@@ -123,7 +123,7 @@ export default function Base64EncoderWorkspace() {
               )}
             </Field>
             <Field label="Output" hint="A data URI is a single line and always uses the standard alphabet.">
-              {({ id, describedBy }) => (
+              {() => (
                 <Segmented
                   label="Output"
                   value={dataUri ? "uri" : "raw"}

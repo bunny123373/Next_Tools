@@ -874,22 +874,6 @@ function joinPointer(pointer: string, token: string): string {
   return `${pointer}/${escapePointerToken(token)}`;
 }
 
-function resolvePointer(root: unknown, pointer: string): unknown {
-  if (pointer === "" || pointer === "#") return root;
-  if (!pointer.startsWith("#/")) return undefined;
-  const parts = pointer
-    .slice(2)
-    .split("/")
-    .map((part) => part.replace(/~1/g, "/").replace(/~0/g, "~"));
-  let current: unknown = root;
-  for (const part of parts) {
-    if (Array.isArray(current) && /^\d+$/.test(part)) current = current[Number(part)];
-    else if (isRecord(current) && part in current) current = current[part];
-    else return undefined;
-  }
-  return current;
-}
-
 /**
  * A JSON Schema subset validator written from scratch — no library.
  *
@@ -1245,7 +1229,6 @@ function renderInline(source: string, ctx: InlineContext): string {
   return text;
 }
 
-const EMPHASIS_MARKER = /\u0001([a-z]+)\u0001([\s\S]*?)\u0001\/\1\u0001/;
 
 /**
  * Wraps emphasis runs in sentinel markers, repeating until the text stops
@@ -1882,9 +1865,30 @@ function renderXmlInlineNode(node: Node, options: XmlFormatOptions): string {
   }
 }
 
+/**
+ * Returns the browser's `DOMParser`, or null when there isn't one.
+ *
+ * These formatters are Client Components, but Next still renders them on the
+ * server for the initial HTML. A workspace that preloads a sample value will
+ * therefore call `formatXml` during SSR, where `DOMParser` does not exist and a
+ * bare `new DOMParser()` throws a ReferenceError that takes the whole page to a
+ * 500. Callers degrade to a readable message instead.
+ */
+function getDomParser(): DOMParser | null {
+  return typeof DOMParser === "undefined" ? null : new DOMParser();
+}
+
 export function formatXml(input: string, options: XmlFormatOptions): TextOutcome {
   if (input.trim() === "") return { text: "", error: "Paste some XML to format." };
-  const parser = new DOMParser();
+  const parser = getDomParser();
+  if (!parser) {
+    return {
+      text: "",
+      error:
+        "XML formatting needs a browser parser, so it runs after this page finishes loading. " +
+        "Reload to use it.",
+    };
+  }
   const doc = parser.parseFromString(input, "application/xml");
   const errorNode = doc.getElementsByTagName("parsererror")[0];
   if (errorNode) {
@@ -2063,7 +2067,15 @@ function renderHtmlElement(
 
 export function formatHtml(input: string, options: HtmlFormatOptions): TextOutcome {
   if (input.trim() === "") return { text: "", error: "Paste some HTML to format." };
-  const parser = new DOMParser();
+  const parser = getDomParser();
+  if (!parser) {
+    return {
+      text: "",
+      error:
+        "HTML formatting needs a browser parser, so it runs after this page finishes loading. " +
+        "Reload to use it.",
+    };
+  }
   const doc = parser.parseFromString(input, "text/html");
 
   const stats = { elements: 0, comments: 0 };
@@ -2937,13 +2949,6 @@ function shouldAddSemicolon(
   return prevIsJsValue(last) || last.t === "name";
 }
 
-function lastBraceIndex(line: JsToken[]): number {
-  for (let k = line.length - 1; k >= 0; k -= 1) {
-    const token = line[k]!;
-    if (token.t === "punct" && (token.v === "}" || token.v === "{")) return k;
-  }
-  return -1;
-}
 
 /* ------------------------------------------------------------------ */
 /*  SQL — keyword-aware, string/comment safe                           */
@@ -5997,7 +6002,7 @@ export function parseRawHeaderBlock(input: string): ParsedHeaderBlock {
     }
 
     const name = raw.slice(0, colon);
-    let value = raw.slice(colon + 1);
+    const value = raw.slice(colon + 1);
     const trimmedName = name.trim();
 
     if (name !== trimmedName) {
@@ -6079,7 +6084,7 @@ export function parseRawHeaderBlock(input: string): ParsedHeaderBlock {
   return { ok: headers.length > 0, requestLine, headers, problems, error: null };
 }
 
-interface SecurityHeaderAudit {
+export interface SecurityHeaderAudit {
   header: string;
   present: boolean;
   verdict: "good" | "partial" | "missing" | "info";
@@ -6153,7 +6158,7 @@ export function auditSecurityHeaders(headers: readonly HeaderRow[]): SecurityHea
     const present = value !== undefined;
     let verdict = spec.verdict;
     let finding = spec.finding;
-    let guidance = spec.guidance;
+    const guidance = spec.guidance;
 
     if (!present) {
       verdict = spec.verdict === "info" ? "info" : "missing";

@@ -24,16 +24,19 @@ export default function UuidGeneratorWorkspace() {
   const [version, setVersion] = React.useState<UuidVersion>("4");
   const [uppercase, setUppercase] = React.useState(false);
   const [hyphens, setHyphens] = React.useState(true);
-  const [uuids, setUuids] = React.useState<string[]>([]);
+  /** Bumped by the Generate button to draw a fresh batch without an effect. */
+  const [seed, setSeed] = React.useState(0);
+  const [cleared, setCleared] = React.useState(false);
+
+  const uuids = React.useMemo(
+    () => (cleared ? [] : generateUuids(count, { version, uppercase, hyphens })),
+    [count, version, uppercase, hyphens, seed, cleared],
+  );
 
   const generate = React.useCallback(() => {
-    const options: UuidOptions = { version, uppercase, hyphens };
-    setUuids(generateUuids(count, options));
-  }, [count, version, uppercase, hyphens]);
-
-  React.useEffect(() => {
-    generate();
-  }, [generate]);
+    setCleared(false);
+    setSeed((current) => current + 1);
+  }, []);
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -55,7 +58,7 @@ export default function UuidGeneratorWorkspace() {
       >
         <div className="grid gap-3 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-3 sm:grid-cols-3">
           <Field label="How many" hint={`Between 1 and ${MAX_UUIDS.toLocaleString("en")}.`}>
-            {({ id, describedBy }) => (
+            {() => (
               <Select
                 id={id}
                 aria-describedby={describedBy}
@@ -75,7 +78,7 @@ export default function UuidGeneratorWorkspace() {
           </Field>
 
           <Field label="Version" hint={version === "4" ? "Random, from crypto.randomUUID()." : "Unix-millisecond prefix, so it sorts by time."}>
-            {({ id, describedBy }) => (
+            {() => (
               <Segmented
                 label="Version"
                 value={version}
@@ -119,10 +122,7 @@ export default function UuidGeneratorWorkspace() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => {
-                setUuids([]);
-                toast.info("Cleared — press Generate for a new batch");
-              }}
+              onClick={() => setCleared(true)}
             >
               <Trash2 aria-hidden="true" className="size-3.5" />
               Clear

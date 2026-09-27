@@ -414,7 +414,6 @@ export default function VideoToAudioWorkspace() {
         {sourceUrl && !result ? (
           <div className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-[var(--text-ink)]">Source</h3>
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-supplied file, no captions apply */}
             <video
               src={sourceUrl}
               controls

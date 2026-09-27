@@ -98,11 +98,21 @@ export default function VideoCropperWorkspace() {
   const sourceUrl = useObjectUrl(source);
 
   const [support, setSupport] = React.useState<MediaSupport | null>(null);
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [probeError, setProbeError] = React.useState<string | null>(null);
+  // Probe results are tagged with the file they describe, so changing the file
+  // invalidates them by derivation rather than by resetting state in an effect.
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const probeError = probe.key === probeKey ? probe.error : null;
 
   const [presetId, setPresetId] = React.useState("16x9");
-  const [crop, setCrop] = React.useState<CropRect>({ x: 0, y: 0, w: 1, h: 1 });
+  // Free-form edits live in `freeCrop`; a locked preset is always the fitted
+  // rectangle, derived from the source ratio rather than stored.
+  const [freeCrop, setFreeCrop] = React.useState<CropRect | null>(null);
   const [formatId, setFormatId] = React.useState("webm-vp9");
   const [fps, setFps] = React.useState(30);
   const [keepAudio, setKeepAudio] = React.useState(true);
@@ -121,37 +131,35 @@ export default function VideoCropperWorkspace() {
   }, []);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setProbeError(null);
     if (!source) return;
+    let alive = true;
     void readVideoMeta(source)
-      .then((value) => alive && setMeta(value))
+      .then((value) => {
+        if (alive) setProbe({ key: probeKey, meta: value, error: null });
+      })
       .catch((error: unknown) => {
-        if (alive) setProbeError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
 
   const sourceRatio = meta && meta.height > 0 ? meta.width / meta.height : 16 / 9;
-
-  const applyPreset = React.useCallback(
-    (id: string) => {
-      setPresetId(id);
-      const preset = PRESETS.find((item) => item.id === id) ?? PRESETS[0];
-      if (preset?.ratio) setCrop(fitPresetToSource(preset.ratio, sourceRatio));
-    },
-    [sourceRatio],
-  );
-
-  // Re-fit when the source aspect ratio changes under a locked preset.
-  React.useEffect(() => {
-    const preset = PRESETS.find((item) => item.id === presetId);
-    if (!preset?.ratio) return;
-    setCrop(fitPresetToSource(preset.ratio, sourceRatio));
-  }, [presetId, sourceRatio]);
+  const activePreset = PRESETS.find((item) => item.id === presetId) ?? PRESETS[0];
+  const locked = presetId !== "free";
+  // A locked preset is always the fitted rectangle for the current source
+  // ratio, so it is derived rather than stored; only free-form edits are state.
+  const crop = React.useMemo<CropRect>(() => {
+    if (!locked) return freeCrop ?? { x: 0.1, y: 0.1, w: 0.8, h: 0.8 };
+    return activePreset?.ratio ? fitPresetToSource(activePreset.ratio, sourceRatio) : { x: 0, y: 0, w: 1, h: 1 };
+  }, [locked, freeCrop, activePreset, sourceRatio]);
 
   const picked = React.useMemo(
     () => (support ? pickVideoMime(videoFormatById(formatId).mime, support) : null),
@@ -275,7 +283,8 @@ export default function VideoCropperWorkspace() {
     setNoAudio(false);
     clear();
     reset();
-    applyPreset("16x9");
+    setPresetId("16x9");
+    setFreeCrop(null);
   };
 
   return (
@@ -317,7 +326,10 @@ export default function VideoCropperWorkspace() {
                     label="Aspect ratio"
                     size="sm"
                     value={presetId}
-                    onChange={applyPreset}
+                    onChange={(id) => {
+                      setPresetId(id);
+                      setFreeCrop(null);
+                    }}
                     options={PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))}
                   />
                 )}
@@ -375,9 +387,9 @@ export default function VideoCropperWorkspace() {
               src={sourceUrl}
               label={source.name}
               crop={crop}
-              locked={presetId !== "free"}
+              locked={locked}
               disabled={isRunning}
-              onChange={setCrop}
+              onChange={setFreeCrop}
             />
             <p className="text-xs text-[var(--text-muted)]">
               Drag inside the rectangle to move it, or drag the corner to resize in Free mode. Arrow keys nudge by 1% and
@@ -465,28 +477,30 @@ function CropSurface({
   onChange: (rect: CropRect) => void;
 }) {
   const frameRef = React.useRef<HTMLDivElement | null>(null);
-  const drag = React.useRef<{ mode: "move" | "resize"; startX: number; startY: number; rect: CropRect } | null>(
+  const dragRef = React.useRef<{ mode: "move" | "resize"; startX: number; startY: number; rect: CropRect } | null>(
     null,
   );
   const [dragging, setDragging] = React.useState(false);
 
-  const pointFrom = React.useCallback((clientX: number, clientY: number) => {
-    const frame = frameRef.current;
-    if (!frame) return { x: 0, y: 0 };
-    const rect = frame.getBoundingClientRect();
-    return {
-      x: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
-    };
-  }, []);
+  const pointFrom = React.useCallback(
+    (frame: HTMLDivElement | null, clientX: number, clientY: number) => {
+      if (!frame) return { x: 0, y: 0 };
+      const rect = frame.getBoundingClientRect();
+      return {
+        x: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
+        y: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
+      };
+    },
+    [],
+  );
 
   React.useEffect(() => {
     if (disabled) return;
     const onMove = (event: PointerEvent) => {
-      const state = drag.current;
+      const state = dragRef.current;
       if (!state) return;
       event.preventDefault();
-      const point = pointFrom(event.clientX, event.clientY);
+      const point = pointFrom(frameRef.current, event.clientX, event.clientY);
       const dx = point.x - state.startX;
       const dy = point.y - state.startY;
       if (state.mode === "move") {
@@ -504,7 +518,7 @@ function CropSurface({
       }
     };
     const onUp = () => {
-      drag.current = null;
+      dragRef.current = null;
       setDragging(false);
     };
     window.addEventListener("pointermove", onMove, { passive: false });
@@ -517,13 +531,16 @@ function CropSurface({
     };
   }, [disabled, onChange, pointFrom]);
 
-  const begin = (mode: "move" | "resize") => (event: React.PointerEvent) => {
-    if (disabled) return;
-    event.preventDefault();
-    const point = pointFrom(event.clientX, event.clientY);
-    drag.current = { mode, startX: point.x, startY: point.y, rect: crop };
-    setDragging(true);
-  };
+  const begin = React.useCallback(
+    (mode: "move" | "resize") => (event: React.PointerEvent) => {
+      if (disabled) return;
+      event.preventDefault();
+      const point = pointFrom(frameRef.current, event.clientX, event.clientY);
+      dragRef.current = { mode, startX: point.x, startY: point.y, rect: crop };
+      setDragging(true);
+    },
+    [disabled, pointFrom, crop],
+  );
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (disabled) return;
@@ -558,7 +575,6 @@ function CropSurface({
       ref={frameRef}
       className="relative touch-none select-none overflow-hidden rounded-xl border border-[var(--surface-line)] bg-black"
     >
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-supplied video, no captions apply */}
       <video src={src} playsInline preload="auto" muted className="block max-h-[24rem] w-full object-contain" />
       <span className="sr-only">{label}</span>
 

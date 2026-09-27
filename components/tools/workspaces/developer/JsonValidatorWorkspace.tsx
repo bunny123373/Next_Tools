@@ -1,14 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  AlertTriangle,
-  Check,
-  CircleAlert,
-  Info,
-  ShieldCheck,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Check, CircleAlert, Info, ShieldCheck } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Field, Segmented, Select, Textarea, Checkbox } from "@/components/ui/form";
 import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";
@@ -118,8 +111,7 @@ export default function JsonValidatorWorkspace() {
   }, [tier, useSchema, schema, schemaReport.error]);
 
   const syntaxOk = parsed?.ok === true;
-  const findingsBySeverity = (level: JsonFinding["severity"]) => findings.filter((f) => f.severity === level);
-  const errors = findingsBySeverity("error");
+  const errors = findings.filter((finding) => finding.severity === "error");
 
   const reportText = React.useMemo(() => {
     if (tier === "syntax") {
@@ -128,17 +120,18 @@ export default function JsonValidatorWorkspace() {
         : `invalid · line ${parsed!.error.line}, column ${parsed!.error.column}\n${parsed!.error.message}`;
     }
     if (tier === "lint") {
-      const lines = [
-        `${errors.length} error(s), ${findingsBySeverity("warning").length} warning(s), ${findingsBySeverity("info").length} note(s)`,
-        ...findings.map((f) => `line ${f.line}, column ${f.column} [${f.severity}] ${f.message}`),
-      ];
-      return lines.join("\n");
+      const count = (level: JsonFinding["severity"]): number =>
+        findings.filter((finding) => finding.severity === level).length;
+      return [
+        `${count("error")} error(s), ${count("warning")} warning(s), ${count("info")} note(s)`,
+        ...findings.map((finding) => `line ${finding.line}, column ${finding.column} [${finding.severity}] ${finding.message}`),
+      ].join("\n");
     }
     return [
       `${schemaReport.violations.length} violation(s)`,
       ...schemaReport.violations.map((v) => `${v.pointer || "/"} [${v.keyword}] ${v.message}`),
     ].join("\n");
-  }, [tier, syntaxOk, parsed, findings, errors.length, schemaReport]);
+  }, [tier, syntaxOk, parsed, findings, schemaReport]);
 
   return (
     <ToolShell>

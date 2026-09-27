@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Binary, Eraser, FlaskConical, Link } from "lucide-react";
+import { Eraser, FlaskConical, Link, TriangleAlert } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
 import { Field, Segmented, Stat, Textarea } from "@/components/ui/form";
@@ -16,36 +16,28 @@ const SAMPLE = "https://example.dev/search?q=blue shoes & size=10 #results";
 export default function UrlEncoderWorkspace() {
   const [value, setValue] = React.useState(SAMPLE);
   const [mode, setMode] = React.useState<UrlEncodeMode>("component");
-  const [output, setOutput] = React.useState("");
 
-  const encode = React.useCallback((text: string, next: UrlEncodeMode): string => encodeUrl(text, next), []);
-
-  const run = React.useCallback(
-    (text: string, next: UrlEncodeMode) => {
-      if (text === "") {
-        setOutput("");
-        return;
-      }
-      try {
-        setOutput(encode(text, next));
-      } catch (error) {
-        // encodeURI and encodeURIComponent both throw on a lone surrogate, which
-        // is a real defect in the input and the visitor deserves to hear about it.
-        setOutput("");
-        toast.error(
-          "Couldn't encode that",
+  /**
+   * Encoding is pure, so the output is derived rather than stored. The only
+   * thing that needs state is the error, and `encodeURI` throwing on a lone
+   * surrogate is a genuine problem worth showing next to the input.
+   */
+  const attempt = React.useMemo(() => {
+    if (value === "") return { text: "", error: null as string | null };
+    try {
+      return { text: encodeUrl(value, mode), error: null as string | null };
+    } catch (error) {
+      return {
+        text: "",
+        error:
           error instanceof Error
-            ? `${error.message} A lone surrogate is a code point with no character, which cannot be encoded.`
+            ? `${error.message} A lone surrogate is a code point with no character, so it has no byte representation to encode.`
             : "One of the characters is not a valid Unicode code point.",
-        );
-      }
-    },
-    [encode],
-  );
+      };
+    }
+  }, [value, mode]);
 
-  React.useEffect(() => {
-    run(value, mode);
-  }, [value, mode, run]);
+  const output = attempt.text;
 
   const inputBytes = React.useMemo(() => new Blob([value]).size, [value]);
   const outputBytes = React.useMemo(() => new Blob([output]).size, [output]);
@@ -94,15 +86,7 @@ export default function UrlEncoderWorkspace() {
             >
               Paste
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={!value}
-              onClick={() => {
-                setValue("");
-                setOutput("");
-              }}
-            >
+            <Button size="sm" variant="ghost" disabled={!value} onClick={() => setValue("")}>
               <Eraser aria-hidden="true" className="size-3.5" />
               Clear
             </Button>
@@ -189,6 +173,16 @@ export default function UrlEncoderWorkspace() {
 
         {value ? (
           <>
+            {attempt.error ? (
+              <div role="alert" className="rounded-[10px] border border-brand-500/30 bg-brand-500/[0.06] px-4 py-3.5">
+                <p className="flex items-start gap-2 text-[13px] font-medium text-[var(--text-ink)]">
+                  <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand-500" />
+                  This text cannot be percent-encoded.
+                </p>
+                <p className="mt-1 text-[13px] leading-relaxed text-[var(--text-ink)]">{attempt.error}</p>
+              </div>
+            ) : null}
+
             <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label="Input bytes" value={formatNumber(inputBytes)} />
               <Stat label="Output bytes" value={formatNumber(outputBytes)} />
