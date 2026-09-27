@@ -1028,7 +1028,9 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
     };
   } finally {
     releaseSource(source);
-    logoSource?.close();
+    // `logoSource` is only set when a watermark logo was supplied; an optional
+    // chain is required because it is `undefined` on the common path.
+    logoSource?.close?.();
   }
 }
 
@@ -1812,7 +1814,7 @@ export async function readImageMetadata(file: Blob): Promise<ImageMetadata> {
   let decodeError: string | null = null;
   try {
     const source = await loadSource(file);
-    decoded = { width: bitmap.width, height: bitmap.height };
+    decoded = { width: source.width, height: source.height };
     releaseSource(source);
   } catch (error) {
     // A browser with no createImageBitmap can still draw the image, so try the

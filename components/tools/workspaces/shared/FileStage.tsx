@@ -213,37 +213,50 @@ export function FileStage({
 }: FileStageProps) {
   const running = stage === "preparing" || stage === "processing" || stage === "finalizing";
   const totalBytes = sumSizes(files);
+  const idle = files.length === 0 && !running;
 
   return (
     <div className={cn("flex flex-col gap-4", className)}>
-      {files.length === 0 && !running && emptyTitle ? (
-        <ToolEmptyState title={emptyTitle} description={emptyDescription} />
-      ) : (
-        <FileDropzone
-          category={category}
-          multiple={multiple}
-          maxFiles={maxFiles}
-          maxBytes={maxBytes}
-          mimeAllow={mimeAllow}
-          onAdd={onAdd}
-          files={files}
-          onRemove={onRemove}
-          onClear={onClear}
-          onReorder={onReorder}
-          reorderable={reorderable}
-          disabled={running && lockWhileRunning}
-          label={dropzoneLabel}
-          hint={dropzoneHint}
-          renderMeta={renderMeta}
-        >
-          {totalBytes > 0 ? (
-            <p className="text-xs text-[var(--text-muted)]">
-              {files.length} {files.length === 1 ? "file" : "files"} ·{" "}
-              <span className="font-mono tabular-nums">{formatBytes(totalBytes)}</span> total
+      {/*
+        The empty state is guidance, never a replacement for the dropzone. An
+        earlier version swapped one for the other, which meant a tool passing
+        `emptyTitle` gave the visitor no way to add a file at all.
+      */}
+      {idle && emptyTitle ? (
+        <div className="rounded-[14px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] px-4 py-4 text-center">
+          <p className="text-[14px] font-medium text-[var(--text-ink)]">{emptyTitle}</p>
+          {emptyDescription ? (
+            <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-[var(--text-muted)]">
+              {emptyDescription}
             </p>
           ) : null}
-        </FileDropzone>
-      )}
+        </div>
+      ) : null}
+
+      <FileDropzone
+        category={category}
+        multiple={multiple}
+        maxFiles={maxFiles}
+        maxBytes={maxBytes}
+        mimeAllow={mimeAllow}
+        onAdd={onAdd}
+        files={files}
+        onRemove={onRemove}
+        onClear={onClear}
+        onReorder={onReorder}
+        reorderable={reorderable}
+        disabled={running && lockWhileRunning}
+        label={dropzoneLabel}
+        hint={dropzoneHint}
+        renderMeta={renderMeta}
+      >
+        {totalBytes > 0 ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            {files.length} {files.length === 1 ? "file" : "files"} ·{" "}
+            <span className="font-mono tabular-nums">{formatBytes(totalBytes)}</span> total
+          </p>
+        ) : null}
+      </FileDropzone>
 
       {controls}
 
