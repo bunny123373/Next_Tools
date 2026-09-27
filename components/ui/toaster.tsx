@@ -1,0 +1,36 @@
+"use client";
+
+import { Toaster as SonnerToaster } from "sonner";
+import { useTheme } from "@/components/layout/theme-provider";
+
+/**
+ * Global toast host. Mounted once in the root layout.
+ * Styling follows the same token set as the rest of the UI so light mode works.
+ */
+export function Toaster() {
+  const { resolvedTheme } = useTheme();
+
+  return (
+    <SonnerToaster
+      theme={resolvedTheme}
+      position="bottom-right"
+      offset={16}
+      gap={10}
+      duration={4200}
+      visibleToasts={4}
+      closeButton
+      toastOptions={{
+        classNames: {
+          toast:
+            "!rounded-xl !border !border-[var(--surface-line)] !bg-[var(--surface-card)] !text-[var(--text-ink)] !shadow-2xl !font-sans",
+          title: "!text-[13px] !font-medium",
+          description: "!text-xs !text-[var(--text-muted)]",
+          closeButton: "!bg-[var(--surface-card-2)] !border-[var(--surface-line)] !text-[var(--text-muted)]",
+          success: "!border-emerald-500/40",
+          error: "!border-brand-500/50",
+          warning: "!border-amber-500/40",
+        },
+      }}
+    />
+  );
+}

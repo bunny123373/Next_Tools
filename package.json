@@ -1,0 +1,51 @@
+{
+  "name": "balu-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Balu Tools — Everything you need. One simple toolbox.",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/generate-icons.mjs",
+    "sync:workspaces": "node scripts/sync-workspaces.mjs --write",
+    "check:workspaces": "node scripts/sync-workspaces.mjs --check",
+    "check": "npm run typecheck && npm run lint && npm run build"
+  },
+  "dependencies": {
+    "@breezystack/lamejs": "1.2.7",
+    "@noble/hashes": "2.4.0",
+    "clsx": "^2.1.1",
+    "gifenc": "1.0.3",
+    "jszip": "3.10.2",
+    "lucide-react": "1.48.0",
+    "next": "16.3.6",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.3.289",
+    "qrcode": "1.5.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "sonner": "2.0.8",
+    "tailwind-merge": "^3.3.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^24.3.0",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.37.0",
+    "eslint-config-next": "16.3.6",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5.9.3"
+  }
+}
