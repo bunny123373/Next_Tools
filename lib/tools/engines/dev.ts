@@ -5021,35 +5021,66 @@ export function describeCron(expression: string): string {
   const parsed = parseCron(expression);
   if (!parsed.ok) return parsed.error;
   const { fields, hasSeconds } = parsed.cron;
-  const at = (index: number): { field: string; spec: CronFieldSpec } => ({
-    field: fields[index]!,
-    spec: (hasSeconds ? CRON_FIELDS_WITH_SECONDS : CRON_FIELDS)[index]!,
-  });
+  const specs = hasSeconds ? CRON_FIELDS_WITH_SECONDS : CRON_FIELDS;
 
-  const minute = describeField(at(hasSeconds ? 1 : 0).field, at(hasSeconds ? 1 : 0).spec);
-  const hour = describeField(at(hasSeconds ? 2 : 1).field, at(hasSeconds ? 2 : 1).spec);
-  const dom = describeField(at(hasSeconds ? 3 : 2).field, at(hasSeconds ? 3 : 2).spec);
-  const month = describeField(at(hasSeconds ? 4 : 3).field, at(hasSeconds ? 4 : 3).spec);
-  const dow = describeField(at(hasSeconds ? 5 : 4).field, at(hasSeconds ? 5 : 4).spec);
-  const second = hasSeconds ? describeField(at(0).field, at(0).spec) : null;
+  const secondRaw = hasSeconds ? fields[0]! : null;
+  const minuteRaw = fields[hasSeconds ? 1 : 0]!;
+  const hourRaw = fields[hasSeconds ? 2 : 1]!;
+  const domRaw = fields[hasSeconds ? 3 : 2]!;
+  const monthRaw = fields[hasSeconds ? 4 : 3]!;
+  const dowRaw = fields[hasSeconds ? 5 : 4]!;
+
+  const minute = describeField(minuteRaw, specs[hasSeconds ? 1 : 0]!);
+  const hour = describeField(hourRaw, specs[hasSeconds ? 2 : 1]!);
+  const dom = describeField(domRaw, specs[hasSeconds ? 3 : 2]!);
+  const month = describeField(monthRaw, specs[hasSeconds ? 4 : 3]!);
+  const dow = describeField(dowRaw, specs[hasSeconds ? 5 : 4]!);
+
+  const isAny = (field: string): boolean => field === "*" || field === "?";
+  const stepOf = (field: string): number | null => (field.startsWith("*/") ? Number(field.slice(2)) : null);
+  const single = (field: string): string | null => (/^\d+$/.test(field) ? field : null);
+
+  const hourStep = stepOf(hourRaw);
+  const minuteStep = stepOf(minuteRaw);
+  const secondStep = secondRaw === null ? null : stepOf(secondRaw);
+  const hourNumber = single(hourRaw);
+  const minuteNumber = single(minuteRaw);
+  const secondNumber = secondRaw === null ? null : single(secondRaw);
 
   const time: string[] = [];
-  if (second !== null && second !== "every second") {
-    time.push(`at second ${second}`);
-  }
-  if (hour === "every hour") {
-    if (minute === "every minute") time.push("every minute");
-    else time.push(`every hour, ${minute}`);
-  } else {
+  if (secondStep !== null) time.push(`every ${secondStep} seconds`);
+  else if (secondRaw !== null && !isAny(secondRaw)) time.push(`at second ${secondRaw}`);
+
+  if (hourStep !== null) {
+    time.push(
+      minuteStep !== null
+        ? `every ${hourStep} hours and ${minuteStep} minutes`
+        : isAny(minuteRaw)
+          ? `every ${hourStep} hours`
+          : `every ${hourStep} hours, ${minute}`,
+    );
+  } else if (minuteStep !== null) {
+    time.push(isAny(hourRaw) ? `every ${minuteStep} minutes` : `every ${minuteStep} minutes, within ${hour}`);
+  } else if (isAny(hourRaw) && isAny(minuteRaw)) {
+    if (secondStep === null) time.push("every minute");
+  } else if (hourNumber !== null && minuteNumber !== null) {
+    time.push(
+      secondNumber !== null
+        ? `at ${hourNumber.padStart(2, "0")}:${minuteNumber.padStart(2, "0")}:${secondNumber.padStart(2, "0")}`
+        : `at ${hourNumber.padStart(2, "0")}:${minuteNumber.padStart(2, "0")}`,
+    );
+  } else if (isAny(hourRaw)) {
+    time.push(`every hour, ${minute}`);
+  } else if (isAny(minuteRaw)) {
     time.push(`at ${hour}`);
-    if (minute !== "every minute") time.push(minute);
+  } else {
+    time.push(`at ${hour}, ${minute}`);
   }
-  if (second === "every second" && hour === "every hour" && minute === "every minute") time.length = 0;
 
   const when: string[] = [];
-  if (dom !== "every day of the month") when.push(`on day ${dom.replace(/^day /, "")} of the month`);
-  if (month !== "every month") when.push(`in ${month}`);
-  if (dow !== "every day") when.push(`on ${dow}`);
+  if (!isAny(domRaw)) when.push(`on day ${dom} of the month`);
+  if (!isAny(monthRaw)) when.push(`in ${month}`);
+  if (!isAny(dowRaw)) when.push(`on ${dow}`);
 
   const clauses = [...time, ...when].filter(Boolean);
   if (clauses.length === 0) return "Runs at every second of every minute of every hour, every day.";

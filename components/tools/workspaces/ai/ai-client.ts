@@ -23,6 +23,7 @@
 import type { ZodType } from "zod";
 import {
   AI_ERROR_MESSAGES,
+  AI_PDF_TRANSPORT_CHARS,
   aiErrorResponseSchema,
   chatResponseSchema,
   imageResponseSchema,
@@ -245,7 +246,9 @@ export async function runPdf(input: PdfRequestInput): Promise<PdfResponse> {
     question: input.question,
     history: input.history,
     ...(input.fileName ? { fileName: input.fileName } : {}),
-    ...(input.text ? { text: input.text } : {}),
+    // Clamped to the transport ceiling; the workspace says so in the interface
+    // when a document is long enough for the clamp to bite.
+    ...(input.text ? { text: input.text.slice(0, AI_PDF_TRANSPORT_CHARS) } : {}),
     ...(input.file ? { fileBase64: await readAsDataURL(input.file) } : {}),
   });
   return parseOrFail(pdfResponseSchema, payload);

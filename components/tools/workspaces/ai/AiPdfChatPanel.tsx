@@ -36,6 +36,7 @@ import {
   AI_MAX_QUESTION_CHARS,
   AI_PDF_CONTEXT_CHARS,
   AI_PDF_HISTORY_TURNS,
+  AI_PDF_TRANSPORT_CHARS,
   type PdfContext,
 } from "@/lib/ai/schemas";
 import type { Tool } from "@/lib/tools/types";
@@ -111,6 +112,8 @@ export default function AiPdfChatPanel({ tool }: { tool: Tool }) {
 
   const documentReady = useServerExtraction ? file !== null : documentText !== null;
   const totalCharacters = documentText?.length ?? 0;
+  /** Longer than the transport ceiling, so the upload is a clamped excerpt. */
+  const overTransport = !useServerExtraction && totalCharacters > AI_PDF_TRANSPORT_CHARS;
   const tooLarge = !useServerExtraction && totalCharacters > AI_PDF_CONTEXT_CHARS;
   const history = turns.slice(-AI_PDF_HISTORY_TURNS).flatMap((turn) => [
     { role: "user" as const, content: turn.question },
@@ -263,7 +266,7 @@ export default function AiPdfChatPanel({ tool }: { tool: Tool }) {
             {documentReady && !useServerExtraction ? (
               <div className="grid gap-2 sm:grid-cols-3">
                 <Readout
-                  label="Context to send"
+                  label="Sent to the model"
                   value={`${formatNumber(Math.min(totalCharacters, AI_PDF_CONTEXT_CHARS))} chars`}
                 />
                 <Readout
@@ -273,6 +276,15 @@ export default function AiPdfChatPanel({ tool }: { tool: Tool }) {
                 />
                 <Readout label="Pages read" value={pageCount === null ? "—" : formatNumber(pageCount)} />
               </div>
+            ) : null}
+
+            {overTransport ? (
+              <Notice tone="warning" icon={<TriangleAlert className="size-4" />} title="Only an excerpt is uploaded.">
+                This document is {formatNumber(totalCharacters)} characters long, so only the first{" "}
+                {formatNumber(AI_PDF_TRANSPORT_CHARS)} are uploaded with your question — uploading the
+                rest would cost time and bandwidth for text the model would never see. Answers about
+                the remainder of the document will not be reliable.
+              </Notice>
             ) : null}
 
             {tooLarge ? (

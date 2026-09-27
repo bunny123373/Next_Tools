@@ -21,7 +21,12 @@
 import { AiError, getAiConfig, isAiConfigured, resolveProvider, type AiImageResult } from "@/lib/ai/provider";
 import { HttpError, NO_STORE, guardRateLimit, handleAiFailure, readJsonBody } from "../lib/http";
 import { IMAGE_SYSTEM_PROMPTS, IMAGE_TASK_DIRECTIVES, buildImageUserMessage } from "@/lib/ai/prompt";
-import { imageRequestSchema, isImageEditTask, type AiImageTask } from "@/lib/ai/schemas";
+import {
+  AI_MAX_IMAGE_BODY_BYTES,
+  imageRequestSchema,
+  isImageEditTask,
+  type AiImageTask,
+} from "@/lib/ai/schemas";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -31,7 +36,7 @@ export async function POST(request: Request): Promise<Response> {
     const limited = guardRateLimit(request, "image");
     if (limited) return limited;
 
-    const body = await readJsonBody(request, imageRequestSchema);
+    const body = await readJsonBody(request, imageRequestSchema, AI_MAX_IMAGE_BODY_BYTES);
     const task: AiImageTask = body.task;
 
     if (!isAiConfigured()) {

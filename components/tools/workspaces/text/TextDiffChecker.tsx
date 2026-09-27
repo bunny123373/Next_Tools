@@ -126,7 +126,6 @@ export default function TextDiffChecker() {
         outputLabel="Unified diff"
         outputPlaceholder="Paste text into both boxes — a copy-and-paste diff appears here."
         hideInput
-        sample={SAMPLE_ORIGINAL}
         controls={
           <div className="flex flex-col gap-3" onKeyDown={onKeyDown}>
             <div className="grid gap-3 lg:grid-cols-2">

@@ -741,9 +741,15 @@ function asNumber(object: PDFObject | undefined, pdfjs: typeof import("pdf-lib")
   return object instanceof pdfjs.PDFNumber ? object.asNumber() : null;
 }
 
+/**
+ * The unescaped name of a `/Name` object, without the leading slash.
+ *
+ * `PDFName.asString()` returns the *encoded* form — `"/Image"`, slash included —
+ * so `decodeText()` is the one that gives a bare `"Image"` to compare against.
+ */
 function asNameString(object: PDFObject | undefined): string | null {
-  if (object && "asString" in object && typeof object.asString === "function") {
-    return object.asString();
+  if (object && "decodeText" in object && typeof object.decodeText === "function") {
+    return object.decodeText();
   }
   return null;
 }

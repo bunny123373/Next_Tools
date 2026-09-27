@@ -246,6 +246,15 @@ export const AI_MAX_IMAGE_PROMPT_CHARS = 2_000;
 export const AI_MAX_SYSTEM_CHARS = 2_000;
 /** Characters of a PDF we are willing to put in front of the model. */
 export const AI_PDF_CONTEXT_CHARS = 24_000;
+/**
+ * Characters of extracted text we are willing to *upload* for one question.
+ *
+ * The route only ever uses the first `AI_PDF_CONTEXT_CHARS`, so sending a
+ * five-megabyte text layer per question would cost bandwidth and time for
+ * nothing. This is a transport ceiling, not a context limit, and the workspace
+ * states it in the interface when a document is long enough to hit it.
+ */
+export const AI_PDF_TRANSPORT_CHARS = 120_000;
 /** Hard ceiling on one question in a PDF chat turn. */
 export const AI_MAX_QUESTION_CHARS = 2_000;
 /** How many previous turns we replay into a PDF chat request. */
@@ -256,6 +265,14 @@ export const AI_MAX_BODY_BYTES = 512 * 1024;
 export const AI_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 /** Hard ceiling on a PDF uploaded for a chat. */
 export const AI_MAX_PDF_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Base64 inflates bytes by 4/3, so the body guard for the routes that accept an
+ * upload has to be sized from the *encoded* payload, not the decoded one. Plus
+ * a little slack for the JSON envelope around it.
+ */
+export const AI_MAX_IMAGE_BODY_BYTES = Math.ceil(AI_MAX_IMAGE_BYTES * 1.4) + 64 * 1024;
+export const AI_MAX_PDF_BODY_BYTES = Math.ceil(AI_MAX_PDF_BYTES * 1.4) + 64 * 1024;
 
 /** Only these image types are ever forwarded to a provider. */
 export const AI_ALLOWED_IMAGE_MIME = [
@@ -538,7 +555,7 @@ export const pdfRequestSchema = z
       .max(Math.ceil(AI_MAX_PDF_BYTES * 1.4))
       .regex(/^data:application\/pdf;base64,[A-Za-z0-9+/=\s]+$/i, "Expected a base64 PDF data URL")
       .optional(),
-    text: optionalBoundedText(AI_MAX_PDF_BYTES),
+    text: optionalBoundedText(AI_PDF_TRANSPORT_CHARS),
     question: boundedText(AI_MAX_QUESTION_CHARS),
     history: z.array(chatTurnSchema).max(AI_PDF_HISTORY_TURNS).default([]),
   })

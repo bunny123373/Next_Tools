@@ -146,7 +146,7 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     slug: "converter",
     category: "image",
     description:
-      "Convert any browser-readable image to JPEG, PNG or WebP, with a quality control and a background colour for transparency. Unsupported codecs are reported clearly.",
+      "Convert any browser-readable image to JPEG, PNG or WebP, with a quality control and a background fill for transparency. Missing codecs are flagged.",
     intro:
       "One tool for every direction: pick the format you need, set the quality, and convert a whole batch in a single pass. If your browser cannot write a format, we tell you before you start.",
     icon: "ImagePlus",
@@ -210,7 +210,7 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     slug: "jpg-to-png",
     category: "image",
     description:
-      "Convert JPEG photos to lossless PNG in your browser. Ideal when you need the exact pixels back — screenshots, flat graphics and anything going through further editing.",
+      "Convert JPEG photos to lossless PNG in your browser. Ideal when you need the exact pixels back for further editing or a lossless pipeline.",
     intro:
       "A straight, lossless JPEG-to-PNG conversion with no quality slider, because PNG has none. Expect a larger file: you are trading bytes for fidelity.",
     icon: "Layers",
@@ -333,7 +333,7 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     slug: "jpg-to-webp",
     category: "image",
     description:
-      "Convert JPEG photos to WebP for a large size reduction at the same quality. Codec support is checked in your browser before you start, so you never get a broken file.",
+      "Convert JPEG photos to WebP for a large size reduction at the same quality. Codec support is checked before you start, so you never get a broken file.",
     intro:
       "WebP usually beats JPEG on size for the same visible quality. This tool measures the saving for you and tells you plainly if your browser cannot write WebP at all.",
     icon: "Sparkles",
@@ -395,7 +395,7 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     slug: "webp-to-jpg",
     category: "image",
     description:
-      "Convert WebP images to universally supported JPEG, with a quality slider and a background fill for transparency. Missing codec support is reported, never hidden.",
+      "Convert WebP images to universally supported JPEG, with a quality slider and a background fill for transparency. Missing codecs are reported.",
     intro:
       "WebP is well supported, but JPEG is supported everywhere. Convert to JPEG with a quality control, and get told clearly if this browser cannot read WebP at all.",
     icon: "RefreshCw",
@@ -456,7 +456,7 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     slug: "cropper",
     category: "image",
     description:
-      "Crop images with a draggable selection, corner and edge handles, exact x/y/w/h fields and aspect presets. Works with a mouse or a finger, fully keyboard operable.",
+      "Crop images with a draggable selection, corner and edge handles, exact x/y/w/h fields and aspect presets. Works with a mouse or a finger.",
     intro:
       "Drag out a selection — or type the numbers — then crop. The handles work with touch, the fields work with a keyboard, and the output keeps the original format.",
     icon: "Crop",
@@ -641,7 +641,7 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     slug: "blur",
     category: "image",
     description:
-      "Apply a true Gaussian blur to an image with a pixel-radius slider and a live preview. If your browser has no canvas filter support, the tool says so instead of faking it.",
+      "Apply a true Gaussian blur with a pixel-radius slider and a live preview. If your browser has no canvas filter support, it says so rather than faking it.",
     intro:
       "A real blur through the canvas filter, not a fake overlay or a darkened copy. If the browser cannot do it, you get an honest explanation and not a misleading preview.",
     icon: "Wand2",

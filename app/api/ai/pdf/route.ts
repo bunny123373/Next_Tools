@@ -22,14 +22,14 @@
  */
 
 import { isAiConfigured, resolveProvider } from "@/lib/ai/provider";
-import { AI_PDF_CONTEXT_CHARS, pdfRequestSchema } from "@/lib/ai/schemas";
+import { AI_MAX_PDF_BODY_BYTES, AI_PDF_CONTEXT_CHARS, pdfRequestSchema } from "@/lib/ai/schemas";
 import { PDF_CHAT_SYSTEM_PROMPT, buildDocumentBlock, buildPdfQuestionMessage } from "@/lib/ai/prompt";
 import { NO_STORE, HttpError, guardRateLimit, handleAiFailure, readJsonBody } from "../lib/http";
 import { extractPdfText } from "./extract";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-/** A base64 PDF is large; give the body reader room before the default cap. */
+/** A base64 PDF is large and the model call is not instant. */
 export const maxDuration = 60;
 
 export async function POST(request: Request): Promise<Response> {
@@ -37,7 +37,9 @@ export async function POST(request: Request): Promise<Response> {
     const limited = guardRateLimit(request, "pdf");
     if (limited) return limited;
 
-    const body = await readJsonBody(request, pdfRequestSchema);
+    // A 25 MB PDF is ~35 MB of base64, so this route's body ceiling is sized
+    // from the encoded payload rather than the shared text-only default.
+    const body = await readJsonBody(request, pdfRequestSchema, AI_MAX_PDF_BODY_BYTES);
 
     if (!isAiConfigured()) {
       throw new HttpError(

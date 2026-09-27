@@ -31,7 +31,6 @@ import {
   encodeMp3,
   encodeWav,
   estimateMp3Bytes,
-  toDb,
   type AudioAnalysis,
   type Mp3Bitrate,
   type WavBitDepth,
@@ -158,7 +157,6 @@ export default function VideoToAudioWorkspace() {
       const blob = encodeWav(prepared, current.bitDepth, {
         channels: current.mono ? 1 : 2,
       });
-      const final = analyseAudio(prepared);
       return [
         {
           blob,
@@ -167,7 +165,6 @@ export default function VideoToAudioWorkspace() {
           note: `${formatDuration(prepared.duration)} · ${current.bitDepth}-bit · ${prepared.sampleRate} Hz · ${
             current.mono ? "mono" : "stereo"
           }`,
-          ...(final.peakDb > -60 ? {} : {}),
         },
       ];
     },

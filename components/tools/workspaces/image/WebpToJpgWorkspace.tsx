@@ -21,7 +21,7 @@ export default function WebpToJpgWorkspace() {
       inputCodec="image/webp"
       zipName="jpg-converted"
       dropLabel="Drop WebP files here to convert to JPG"
-      dropHint="WebP only, up to 20 files per batch. Animated WebP is flattened to its first frame."
+      dropHint="This converter reads WebP files only, and takes up to 20 at a time. An animated WebP is flattened to its first frame."
       actionLabel="Convert to JPG"
     />
   );

@@ -24,7 +24,7 @@ import {
   IMAGE_TASK_DIRECTIVES,
   buildImageUserMessage,
 } from "@/lib/ai/prompt";
-import { visionRequestSchema } from "@/lib/ai/schemas";
+import { visionRequestSchema, AI_MAX_IMAGE_BODY_BYTES } from "@/lib/ai/schemas";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -34,7 +34,7 @@ export async function POST(request: Request): Promise<Response> {
     const limited = guardRateLimit(request, "vision");
     if (limited) return limited;
 
-    const body = await readJsonBody(request, visionRequestSchema);
+    const body = await readJsonBody(request, visionRequestSchema, AI_MAX_IMAGE_BODY_BYTES);
 
     if (!isAiConfigured()) {
       throw new HttpError(

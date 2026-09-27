@@ -565,15 +565,17 @@ export interface CleanOperation {
 
 /**
  * Every operation, in the order they are applied. Order matters: line endings
- * are normalised before anything looks for newlines, and markup is removed
- * before the URL/email passes so a link in an attribute goes with its tag.
+ * are normalised before anything looks for newlines, tabs become spaces before
+ * runs of spaces are collapsed, and markup is removed before the URL/email
+ * passes so a link inside an attribute goes with its tag.
  */
 export const CLEAN_OPERATIONS: readonly CleanOperation[] = [
   { id: "crlf-to-lf", label: "Normalise CRLF to LF", description: "Windows and classic-Mac line endings become \\n", group: "whitespace" },
   { id: "trim", label: "Trim the whole text", description: "Removes whitespace at the very start and end", group: "whitespace" },
   { id: "trim-trailing", label: "Trim each line", description: "Removes trailing spaces and tabs from every line", group: "whitespace" },
+  { id: "remove-tabs", label: "Remove tabs", description: "Tabs become a single space", group: "whitespace" },
   { id: "collapse-spaces", label: "Collapse repeated spaces", description: "Two or more spaces become one", group: "whitespace" },
-  { id: "remove-tabs", label: "Remove tabs", description: "Tabs become a single space", group: "whitespace" },  { id: "collapse-blanks", label: "Collapse 3+ blank lines to 1", description: "Extra vertical whitespace between paragraphs", group: "whitespace" },
+  { id: "collapse-blanks", label: "Collapse 3+ blank lines to 1", description: "Extra vertical whitespace between paragraphs", group: "whitespace" },
   { id: "remove-blank-lines", label: "Remove empty lines", description: "Deletes every line that is only whitespace", group: "whitespace" },
   { id: "strip-zero-width", label: "Strip zero-width characters", description: "Zero-width space/joiner and the byte-order mark", group: "characters" },
   { id: "strip-control", label: "Strip control characters", description: "Everything unprintable except line breaks", group: "characters" },
