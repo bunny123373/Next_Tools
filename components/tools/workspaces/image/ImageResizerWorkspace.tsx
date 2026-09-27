@@ -334,8 +334,8 @@ export default function ImageResizerWorkspace() {
                     placeholder="—"
                     suffix="px"
                     onChange={(event) => {
-                      const next = Number.parseInt(event.target.value, 10);
-                      if (Number.isFinite(next)) setWidthField(next);
+                      const next = parseDimension(event.target.value);
+                      if (next !== null) setWidthField(next);
                     }}
                   />
                 )}
@@ -353,8 +353,8 @@ export default function ImageResizerWorkspace() {
                     placeholder="—"
                     suffix="px"
                     onChange={(event) => {
-                      const next = Number.parseInt(event.target.value, 10);
-                      if (Number.isFinite(next)) setHeightField(next);
+                      const next = parseDimension(event.target.value);
+                      if (next !== null) setHeightField(next);
                     }}
                   />
                 )}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Copy, Dices, Trash2 } from "lucide-react";
+import { Copy, Dices, ShieldCheck, Trash2 } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Segmented, Select, Stat } from "@/components/ui/form";

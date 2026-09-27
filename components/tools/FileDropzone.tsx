@@ -240,7 +240,7 @@ export function FileDropzone({
             </Button>
           ) : null}
           <span className="self-center text-[11px] text-[var(--text-muted)]">
-            {categoryLabel(category)} · max {sizeLabel}
+            {categoryLabel(category, mimeAllow)} · max {sizeLabel}
           </span>
         </div>
 
@@ -289,7 +289,7 @@ export function FileDropzone({
         role="button"
         tabIndex={disabled ? -1 : 0}
         aria-disabled={disabled || undefined}
-        aria-label={`Upload ${multiple ? "files" : "a file"}: ${label ?? categoryLabel(category)}`}
+        aria-label={`Upload ${multiple ? "files" : "a file"}: ${label ?? categoryLabel(category, mimeAllow)}`}
         onClick={() => !disabled && inputRef.current?.click()}
         onKeyDown={(event) => {
           if (disabled) return;
@@ -348,7 +348,7 @@ export function FileDropzone({
         </div>
 
         <p className="text-[11px] text-[var(--text-muted)]">
-          {categoryLabel(category)}
+          {categoryLabel(category, mimeAllow)}
           {limitLabel} · max {sizeLabel} each
         </p>
 
@@ -395,7 +395,43 @@ export function FileDropzone({
   );
 }
 
-function categoryLabel(category: FileCategory): string {
+/**
+ * Human-readable acceptance label.
+ *
+ * When a tool passes a narrow `mimeAllow` alongside `category: "any"` — a
+ * single-format converter does exactly that so it gets real type rejection —
+ * the generic "Any file" label is misleading. Derive it from the MIME list so
+ * the dropzone says "JPG" rather than "Any file".
+ */
+function categoryLabel(category: FileCategory, mimeAllow?: string[]): string {
+  if (category === "any") {
+    if (!mimeAllow?.length) return "Any file";
+    const short = Array.from(
+      new Set(
+        mimeAllow.map((mime) => {
+          const subtype = (mime.split("/")[1] ?? mime).toLowerCase();
+          const known: Record<string, string> = {
+            jpeg: "JPG",
+            jpg: "JPG",
+            png: "PNG",
+            webp: "WebP",
+            gif: "GIF",
+            pdf: "PDF",
+            mpeg: "MP3",
+            mp3: "MP3",
+            wav: "WAV",
+            "x-wav": "WAV",
+            quicktime: "MOV",
+          };
+          return known[subtype] ?? subtype.toUpperCase();
+        }),
+      ),
+    );
+    if (short.length === 0) return "Any file";
+    if (short.length <= 3) return short.join(", ");
+    return `${short.slice(0, 3).join(", ")} +${short.length - 3}`;
+  }
+
   switch (category) {
     case "image":
       return "JPG, PNG, WebP, GIF, AVIF";
@@ -407,8 +443,6 @@ function categoryLabel(category: FileCategory): string {
       return "MP3, WAV, M4A, OGG, FLAC";
     case "text":
       return "TXT, MD, CSV, JSON, XML, HTML";
-    default:
-      return "Any file";
   }
 }
 

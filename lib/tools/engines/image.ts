@@ -1059,22 +1059,6 @@ export function rgbToHex(r: number, g: number, b: number): string {
   return `#${part(r)}${part(g)}${part(b)}`.toUpperCase();
 }
 
-export function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace("#", "").trim();
-  const full =
-    clean.length === 3
-      ? clean
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : clean;
-  return [
-    Number.parseInt(full.slice(0, 2), 16) || 0,
-    Number.parseInt(full.slice(2, 4), 16) || 0,
-    Number.parseInt(full.slice(4, 6), 16) || 0,
-  ];
-}
-
 /** Longest side of the analysis downscale. Big enough to be representative,
  *  small enough that clustering stays instant on a 100 MP photo. */
 const PALETTE_SAMPLE_EDGE = 100;

@@ -38,23 +38,28 @@ export const WORKSPACES: Record<string, WorkspaceComponent> = {
 
   // audio
   "audio-merger": dynamic(() => import("./audio/AudioMerger")),
+  "audio-normalizer": dynamic(() => import("./audio/AudioNormalizer")),
   "audio-splitter": dynamic(() => import("./audio/AudioSplitter")),
   "audio-trimmer": dynamic(() => import("./audio/AudioTrimmer")),
   "mp3-converter": dynamic(() => import("./audio/Mp3Converter")),
+  "volume-booster": dynamic(() => import("./audio/VolumeBooster")),
   "wav-converter": dynamic(() => import("./audio/WavConverter")),
 
   // developer
   "base64-decoder": dynamic(() => import("./developer/Base64DecoderWorkspace")),
   "base64-encoder": dynamic(() => import("./developer/Base64EncoderWorkspace")),
   "css-formatter": dynamic(() => import("./developer/CssFormatterWorkspace")),
+  "hash-generator": dynamic(() => import("./developer/HashGeneratorWorkspace")),
   "html-formatter": dynamic(() => import("./developer/HtmlFormatterWorkspace")),
   "javascript-formatter": dynamic(() => import("./developer/JavascriptFormatterWorkspace")),
   "json-formatter": dynamic(() => import("./developer/JsonFormatterWorkspace")),
   "json-minifier": dynamic(() => import("./developer/JsonMinifierWorkspace")),
   "json-validator": dynamic(() => import("./developer/JsonValidatorWorkspace")),
+  "jwt-decoder": dynamic(() => import("./developer/JwtDecoderWorkspace")),
   "sql-formatter": dynamic(() => import("./developer/SqlFormatterWorkspace")),
   "url-decoder": dynamic(() => import("./developer/UrlDecoderWorkspace")),
   "url-encoder": dynamic(() => import("./developer/UrlEncoderWorkspace")),
+  "uuid-generator": dynamic(() => import("./developer/UuidGeneratorWorkspace")),
   "xml-formatter": dynamic(() => import("./developer/XmlFormatterWorkspace")),
 
   // image

@@ -26,7 +26,6 @@ import type {
   PDFName as PDFNameType,
   PDFNumber as PDFNumberType,
   PDFObject,
-  PDFPage,
   PDFRawStream as PDFRawStreamType,
   PDFRef as PDFRefType,
 } from "pdf-lib";
@@ -292,15 +291,6 @@ export interface PageSize {
   height: number;
 }
 
-export function formatPageSize(size: PageSize): string {
-  return `${Math.round(size.width)} × ${Math.round(size.height)} pt`;
-}
-
-/** mm → pt, for the readable paper-size labels. */
-export function mmToPoints(mm: number): number {
-  return (mm / 25.4) * 72;
-}
-
 /* ------------------------------------------------------------------ */
 /*  pdfjs: open, render, always destroy                                 */
 /* ------------------------------------------------------------------ */
@@ -393,21 +383,6 @@ export async function renderPageToImage(
     await renderPage(page, options, canvas);
     const blob = await canvasToBlob(canvas, options.format, options.quality);
     return { blob, width: canvas.width, height: canvas.height };
-  } finally {
-    page.cleanup();
-  }
-}
-
-/** Render one page into a canvas the caller owns — used by the thumbnail grids. */
-export async function renderPageToCanvas(
-  doc: PDFDocumentProxy,
-  pageIndex: number,
-  canvas: HTMLCanvasElement,
-  scale: number,
-): Promise<void> {
-  const page = await doc.getPage(pageIndex + 1);
-  try {
-    await renderPage(page, { scale, format: "png", quality: 1 }, canvas);
   } finally {
     page.cleanup();
   }
@@ -2049,7 +2024,3 @@ export async function imagesToPdf(
 /* ------------------------------------------------------------------ */
 
 export type { PDFArrayType, PDFDictType, PDFNameType, PDFNumberType, PDFRawStreamType, PDFRefType };
-export type PdfLibDocument = PDFDocument;
-export type PdfLibPage = PDFPage;
-export type PdfJsDocument = PDFDocumentProxy;
-export type PdfJsPage = PDFPageProxy;

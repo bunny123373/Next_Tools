@@ -223,7 +223,7 @@ export default function AudioSplitterWorkspace() {
         const stem = baseName(file.name);
         const fade = current.crossfadeMs;
 
-        for (let partIndex = 0; partIndex < ranges.length; partIndex += 1) {
+        for (let partIndex = 0; partIndex < ranges.ranges.length; partIndex += 1) {
           const range = ranges.ranges[partIndex]!;
           const slice = sliceBuffer(buffer, range.start, range.end);
           // Crossfades stop the join point from clicking when the parts are
