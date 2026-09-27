@@ -72,6 +72,13 @@ const SUGGESTIONS = [
 
 /** The composer grows to this height, then scrolls internally. */
 const MAX_COMPOSER_ROWS = 8;
+/**
+ * Must equal `MAX_COMPOSER_ROWS * lineHeight + padding` (8 * 24 + 24). The
+ * auto-grow effect writes this as an inline height while the `max-h` class caps
+ * it in CSS; when the two disagree the textarea is clipped short of its own
+ * scroll point.
+ */
+const MAX_COMPOSER_PX = MAX_COMPOSER_ROWS * 24 + 24;
 
 interface Message {
   id: number;
@@ -162,9 +169,7 @@ function ChatInterface({ tool }: { tool: Tool }) {
     const node = textareaRef.current;
     if (!node) return;
     node.style.height = "auto";
-    const lineHeight = 24;
-    const max = lineHeight * MAX_COMPOSER_ROWS + 24;
-    node.style.height = `${Math.min(node.scrollHeight, max)}px`;
+    node.style.height = `${Math.min(node.scrollHeight, MAX_COMPOSER_PX)}px`;
   }, [input]);
 
   /* -- send --------------------------------------------------------------- */
@@ -282,7 +287,13 @@ function ChatInterface({ tool }: { tool: Tool }) {
   const empty = messages.length === 0;
 
   return (
-    <ToolShell flush>
+    // `overflow-visible` deliberately overrides ToolShell's `flush`
+    // `overflow-hidden`. An `overflow: hidden` ancestor is a scroll container,
+    // so a `position: sticky` composer inside it resolves against THAT box
+    // rather than the viewport — and since the box does not scroll, the
+    // composer simply scrolled away instead of staying pinned. This is the
+    // whole reason the ChatGPT-style pinned composer appeared not to work.
+    <ToolShell flush className="overflow-visible">
       <div className="flex min-h-[70vh] flex-col">
         {status.state === "checking" ? (
           <div className="p-4 sm:p-6">
@@ -392,7 +403,9 @@ function ChatInterface({ tool }: { tool: Tool }) {
                     // different variant, and the ring drew a red rounded box that
                     // did not line up with the 26px composer around it. The
                     // container's `focus-within:` border is the only focus cue.
-                    className="max-h-[200px] min-h-[52px] w-full resize-none rounded-none border-0 border-transparent bg-transparent px-4 pt-3.5 text-[15px] leading-6 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:shadow-none"
+                    //
+                    // 16px on a phone for the iOS zoom reason; 15px from `sm` up.
+                    className="max-h-[216px] min-h-[52px] w-full resize-none rounded-none border-0 border-transparent bg-transparent px-4 pt-3.5 text-base leading-6 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:shadow-none sm:text-[15px]"
                   />
 
                   <div className="flex items-center gap-1.5 px-2.5 pb-2.5">
@@ -523,7 +536,9 @@ function ChatInterface({ tool }: { tool: Tool }) {
                           disabled={busy}
                           placeholder="Be terse. Answer in Spanish. Explain like I'm new to this."
                           onChange={(event) => setPersona(event.target.value)}
-                          className="resize-y"
+                          // Same iOS zoom reason as the composer: the shared
+                          // control is `text-sm` (14px), so 16px on a phone.
+                          className="resize-y text-base sm:text-sm"
                         />
                       )}
                     </Field>

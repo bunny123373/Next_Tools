@@ -45,6 +45,20 @@
   --animate-fade-in: fade-in 0.35s var(--ease-out-soft) both;
   --animate-shimmer: shimmer 1.6s linear infinite;
   --animate-pulse-ring: pulse-ring 2.4s var(--ease-out-soft) infinite;
+
+  /*
+   * Safe-area insets.
+   *
+   * The layout sets `viewport-fit=cover`, which lets content draw under the
+   * notch and the home indicator on iOS. Without these, a fixed bottom-right
+   * button sits half off the screen. `max()` keeps a sensible minimum on
+   * devices that report zero, and `env()` degrades to 0 where unsupported, so
+   * these are safe to use unconditionally.
+   */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 @keyframes fade-up {

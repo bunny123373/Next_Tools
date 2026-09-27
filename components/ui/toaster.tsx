@@ -14,7 +14,10 @@ export function Toaster() {
     <SonnerToaster
       theme={resolvedTheme}
       position="bottom-right"
-      offset={16}
+      // Clear of the iOS home indicator. The layout sets `viewport-fit=cover`,
+      // so a flat offset would put the bottom toast half under the gesture
+      // bar. `calc` keeps the normal gap where there is no inset.
+      offset="max(16px, var(--safe-bottom))"
       gap={10}
       duration={4200}
       visibleToasts={4}

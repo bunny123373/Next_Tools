@@ -215,6 +215,9 @@ full keyboard operation. `prefers-reduced-motion` is respected globally.
 
 Tested breakpoints: **320 / 375 / 414 / 768 / 1024 / 1440 / 1920**.
 
+On a phone the chat inputs are **16px** so iOS Safari does not zoom the viewport on focus,
+fixed elements clear the notch and the home indicator, and tap targets are at least 40px.
+
 ---
 
 ## ✅ Quality gates
@@ -225,7 +228,13 @@ Tested breakpoints: **320 / 375 / 414 / 768 / 1024 / 1440 / 1920**.
 | Lint | `npm run lint` | clean on all files touched by the tool contract |
 | Build | `npm run build` | 129 static pages |
 | Routes | `node scripts/check-routes.mjs` | 30 static + 101 tool routes as expected |
-| Registry | `node scripts/sync-workspaces.mjs --check` | every tool has a workspace, and vice versa |
+| Registry | `npm run check:workspaces` | every tool has a workspace, and vice versa |
+| Mobile | `npm run check:mobile` | safe-area insets, 16px inputs, sticky composer, tap targets |
+| Composer | `npm run check:focus` | the shared control's focus ring is provably cancelled |
+| README | `npm run check:readme` | every table-of-contents anchor resolves |
+
+Run them all at once with `npm run check:static`. Each guard corresponds to a bug
+that actually shipped, not a style preference.
 
 ---
 

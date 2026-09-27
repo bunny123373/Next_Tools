@@ -16,6 +16,10 @@
     "icons": "node scripts/generate-icons.mjs",
     "sync:workspaces": "node scripts/sync-workspaces.mjs --write",
     "check:workspaces": "node scripts/sync-workspaces.mjs --check",
+    "check:readme": "node scripts/check-readme-links.mjs",
+    "check:mobile": "node scripts/check-mobile.mjs",
+    "check:focus": "node scripts/check-composer-focus.mjs",
+    "check:static": "node scripts/check-readme-links.mjs && node scripts/check-mobile.mjs && node scripts/check-composer-focus.mjs && node scripts/sync-workspaces.mjs --check",
     "check": "npm run typecheck && npm run lint && npm run build"
   },
   "dependencies": {

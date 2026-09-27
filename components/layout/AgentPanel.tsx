@@ -29,6 +29,13 @@ import { formatNumber } from "@/lib/utils/format";
 const MAX_INPUT_CHARS = 4_000;
 /** Rows the composer grows to before it scrolls. */
 const MAX_COMPOSER_ROWS = 6;
+/**
+ * Must equal `MAX_COMPOSER_ROWS * lineHeight + padding` (6 * 24 + 24). The
+ * auto-grow effect sets an inline height from this number while the `max-h`
+ * class caps it in CSS; when the two disagree the textarea is clipped a few
+ * pixels short of its own scroll point.
+ */
+const MAX_COMPOSER_PX = MAX_COMPOSER_ROWS * 24 + 24;
 
 interface Turn {
   id: number;
@@ -83,8 +90,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
     const node = inputRef.current;
     if (!node) return;
     node.style.height = "auto";
-    const max = 24 * MAX_COMPOSER_ROWS + 24;
-    node.style.height = `${Math.min(node.scrollHeight, max)}px`;
+    node.style.height = `${Math.min(node.scrollHeight, MAX_COMPOSER_PX)}px`;
   }, [input]);
 
   const send = React.useCallback(
@@ -193,7 +199,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
           disabled={turns.length === 0 || busy}
           aria-label="Clear the conversation"
           title="Clear"
-          className="grid size-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid size-10 place-items-center rounded-full text-[var(--text-muted)] transition-colors sm:size-8rs hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Trash2 className="size-4" aria-hidden="true" />
         </button>
@@ -202,14 +208,17 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
           onClick={onClose}
           aria-label="Close the assistant"
           title="Close"
-          className="grid size-8 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)]"
+          className="grid size-10 place-items-center rounded-full text-[var(--text-muted)] transition-colors sm:size-8rs hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)]"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
       </header>
 
       {/* Messages ------------------------------------------------------- */}
-      <div onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div
+        onScroll={onScroll}
+        className="min-h-0 flex-1 overscroll-contain overflow-y-auto"
+      >
         {turns.length === 0 ? (
           <div className="p-4">
             <p className="text-[13px] leading-relaxed text-[var(--text-muted)]">{GREETING}</p>
@@ -304,7 +313,11 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
             // red `focus:` border and ring, and its 10px radius, all have to go
             // or they draw a red box that does not match the 22px pill around
             // it. The wrapper's `focus-within:` border is the focus cue instead.
-            className="max-h-[150px] min-h-[44px] w-full resize-none rounded-none border-0 border-transparent bg-transparent px-3.5 pt-3 text-[13.5px] leading-6 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:shadow-none"
+            // 16px on a phone, 13.5px from `sm` up. iOS Safari zooms the
+            // viewport when a focused field computes to less than 16px, and it
+            // does not zoom back out when the field is blurred — so a 13.5px
+            // input leaves the reader stuck at magnification.
+            className="max-h-[168px] min-h-[44px] w-full resize-none rounded-none border-0 border-transparent bg-transparent px-3.5 pt-3 text-base leading-6 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:shadow-none sm:text-[13.5px]"
           />
           <div className="flex items-center gap-1.5 px-2 pb-2">
             {hasUserTurn ? (
@@ -314,7 +327,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 disabled={busy}
                 aria-label="Regenerate the last reply"
                 title="Regenerate"
-                className="grid size-7 place-items-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)] disabled:opacity-40"
+                className="grid size-10 place-items-center rounded-full text-[var(--text-muted)] transition-colors sm:size-7rs hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)] disabled:opacity-40"
               >
                 <RotateCcw className="size-3.5" aria-hidden="true" />
               </button>
@@ -332,7 +345,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 onClick={() => abortRef.current?.abort()}
                 aria-label="Stop generating"
                 title="Stop"
-                className="grid size-8 shrink-0 place-items-center rounded-full bg-[var(--text-ink)] text-[var(--surface-card)] hover:opacity-90"
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--text-ink)] text-[var(--surface-card)] hover:opacity-90 sm:size-8"
               >
                 <Square className="size-3" fill="currentColor" aria-hidden="true" />
               </button>
@@ -344,7 +357,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 aria-label="Send message"
                 title="Send (Enter)"
                 className={cn(
-                  "grid size-8 shrink-0 place-items-center rounded-full transition-all",
+                  "grid size-10 shrink-0 place-items-center rounded-full transition-all sm:size-8",
                   canSend
                     ? "bg-[var(--text-ink)] text-[var(--surface-card)] hover:opacity-90"
                     : "cursor-not-allowed bg-[var(--surface-line)] text-[var(--text-muted)]",

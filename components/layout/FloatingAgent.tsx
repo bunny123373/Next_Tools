@@ -172,7 +172,14 @@ export function FloatingAgent() {
         aria-modal="false"
         className={cn(
           "fixed z-[70] flex flex-col overflow-hidden border border-[var(--surface-line)] bg-[var(--surface-card)] shadow-2xl",
-          "inset-0 sm:inset-auto sm:right-5 sm:bottom-24 sm:h-[min(34rem,calc(100dvh-8rem))] sm:w-[24rem] sm:rounded-2xl",
+          // Full-bleed on a phone, inset card from `sm` up. The mobile case has
+          // to respect the notch and the home indicator, or the header sits
+          // under the status bar and the composer under the gesture bar.
+          "inset-0 pt-[var(--safe-top)] pb-[var(--safe-bottom)]",
+          "sm:inset-auto sm:bottom-[max(1.5rem,var(--safe-bottom))] sm:right-[max(1.25rem,var(--safe-right))]",
+          "sm:h-[min(34rem,calc(100dvh-10rem))] sm:w-[24rem] sm:rounded-2xl sm:pt-0 sm:pb-0",
+          // Nothing inside is `position: sticky`, so clipping here cannot break
+          // a sticky child the way an `overflow: hidden` ancestor does.
           open ? "flex" : "hidden",
         )}
       >
@@ -191,7 +198,13 @@ export function FloatingAgent() {
         aria-expanded={open}
         aria-label={open ? "Close the AI assistant" : "Open the AI assistant"}
         className={cn(
-          "fixed bottom-5 right-5 z-[70] grid size-14 place-items-center rounded-full shadow-lg transition-all sm:bottom-6 sm:right-6",
+          // `max()` keeps a 20px minimum on devices reporting no inset, and
+          // adds the home-indicator / notch inset where there is one. Without
+          // this the button half-overlaps the iOS home indicator.
+          "fixed z-[70] grid place-items-center rounded-full shadow-lg transition-all",
+          "bottom-[max(1.25rem,var(--safe-bottom))] right-[max(1.25rem,var(--safe-right))]",
+          // 56px on every size: comfortably past the 44px touch target minimum.
+          "size-14",
           "bg-[var(--text-ink)] text-[var(--surface-card)] hover:opacity-90",
           "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
           // While open the button is invisible, and on a small screen the panel
