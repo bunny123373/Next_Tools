@@ -11,7 +11,7 @@ import {
   useTransform,
   type TransformFn,
 } from "@/components/tools/workspaces/shared/FileStage";
-import { DownloadButton } from "@/components/tools/DownloadButton";
+import { DownloadButton, DownloadGroup } from "@/components/tools/DownloadButton";
 import { Notice } from "@/components/tools/states";
 import { Checkbox, Field, Select, Slider, Stat } from "@/components/ui/form";
 import { useFiles } from "@/lib/hooks";
@@ -214,8 +214,7 @@ export default function PdfCompressorWorkspace() {
           multiple
           maxFiles={MAX_FILES}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF to shrink it."
-          emptyDescription="Scanned and image-heavy documents give the biggest real reductions."
+          dropzoneLabel="Drop a PDF here to shrink it"
           dropzoneHint={`Up to ${MAX_FILES} files at a time. Only raster images are re-encoded — text and vector art are left alone.`}
           controls={
             <div className="grid gap-4">
@@ -344,6 +343,12 @@ export default function PdfCompressorWorkspace() {
                   filename={results[0]!.filename}
                   label="Download compressed PDF"
                   caption={`${formatBytes(results[0]!.blob.size)} from ${formatBytes(report.bytesBefore)}`}
+                />
+              ) : results.length > 1 ? (
+                <DownloadGroup
+                  items={results.map((result) => ({ name: result.filename, blob: result.blob }))}
+                  zipName="compressed-pdfs"
+                  originalTotalBytes={bytesIn}
                 />
               ) : null}
             </ResultsPanel>

@@ -3,7 +3,14 @@
 import * as React from "react";
 import { Ruler, TriangleAlert } from "lucide-react";
 import type { Tool } from "@/lib/tools/types";
-import { outputTypeFor, readImageSize, reencode, type OutputMime } from "@/lib/tools/engines/image";
+import {
+  outputTypeFor,
+  parseDimension,
+  readImageSize,
+  reencode,
+  scaleSize,
+  type OutputMime,
+} from "@/lib/tools/engines/image";
 import { withExtension } from "@/lib/utils/files";
 import { formatBytes, percentSaved } from "@/lib/utils/format";
 import { useFiles, useObjectUrl } from "@/lib/hooks";
@@ -199,8 +206,9 @@ export default function ImageResizerWorkspace() {
 
   const applyPreset = (factor: number) => {
     if (!source) return;
-    setWidth(Math.max(1, Math.round(source.width * factor)));
-    setHeight(Math.max(1, Math.round(source.height * factor)));
+    const next = scaleSize(source, factor);
+    setWidth(next.width);
+    setHeight(next.height);
   };
 
   const reported = React.useRef<string | null>(null);

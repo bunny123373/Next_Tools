@@ -10,10 +10,12 @@
  *  - `getDocument({ data })` wants the `Uint8Array`, not a bare `ArrayBuffer`.
  *  - `page.render({ canvas, viewport })` — the old `canvasContext`-only form is
  *    gone, so we always create the canvas ourselves and size it to the viewport.
- *  - Every `PDFDocumentProxy` must be `destroy()`ed. A leaked document pins the
- *    whole parsed file in memory, which is the classic "works twice, then the
- *    tab freezes" bug. `withPdfJsDocument()` exists so there is exactly one
- *    place that guarantees the `finally`.
+ *  - Every loading task must be `destroy()`ed. A leaked document pins the whole
+ *    parsed file in memory, which is the classic "works twice, then the tab
+ *    freezes" bug — and in pdfjs-dist v6 the release point is
+ *    `loadingTask.destroy()` (the proxy has no `destroy()` of its own).
+ *    `withPdfJsDocument()` exists so there is exactly one place that guarantees
+ *    the `finally`.
  */
 
 import type {
@@ -40,7 +42,7 @@ export type PdfJsTextContent = Awaited<ReturnType<PDFPageProxy["getTextContent"]
 let pdfLibPromise: Promise<typeof import("pdf-lib")> | null = null;
 
 /** `pdf-lib` on demand. Cached for the tab's lifetime. */
-export function loadPdfLib(): Promise<typeof import("pdf-lib")> {
+function loadPdfLib(): Promise<typeof import("pdf-lib")> {
   if (!pdfLibPromise) {
     pdfLibPromise = import("pdf-lib").catch((error: unknown) => {
       pdfLibPromise = null;
@@ -78,7 +80,7 @@ function configureWorker(pdfjs: typeof import("pdfjs-dist")): void {
 let pdfJsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
 
 /** `pdfjs-dist` on demand, with the worker wired up once. */
-export function loadPdfJs(): Promise<typeof import("pdfjs-dist")> {
+function loadPdfJs(): Promise<typeof import("pdfjs-dist")> {
   if (!pdfJsPromise) {
     pdfJsPromise = (async () => {
       const pdfjs = await import("pdfjs-dist");
@@ -96,7 +98,7 @@ export function loadPdfJs(): Promise<typeof import("pdfjs-dist")> {
 /*  Small shared helpers                                               */
 /* ------------------------------------------------------------------ */
 
-export function blobFromBytes(bytes: Uint8Array, mime: string): Blob {
+function blobFromBytes(bytes: Uint8Array, mime: string): Blob {
   // Copy into a fresh buffer: pdf-lib/pdfjs buffers can be views over a larger
   // ArrayBuffer, and handing that to a Blob would leak the whole file.
   return new Blob([new Uint8Array(bytes)], { type: mime });

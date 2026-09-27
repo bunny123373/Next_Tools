@@ -36,6 +36,27 @@ export const WORKSPACES: Record<string, WorkspaceComponent> = {
   "ai-text-generator": dynamic(() => import("./ai/AiTextGeneratorWorkspace")),
   "ai-translator": dynamic(() => import("./ai/AiTranslatorWorkspace")),
 
+  // audio
+  "audio-merger": dynamic(() => import("./audio/AudioMerger")),
+  "audio-splitter": dynamic(() => import("./audio/AudioSplitter")),
+  "audio-trimmer": dynamic(() => import("./audio/AudioTrimmer")),
+  "mp3-converter": dynamic(() => import("./audio/Mp3Converter")),
+  "wav-converter": dynamic(() => import("./audio/WavConverter")),
+
+  // developer
+  "base64-decoder": dynamic(() => import("./developer/Base64DecoderWorkspace")),
+  "base64-encoder": dynamic(() => import("./developer/Base64EncoderWorkspace")),
+  "css-formatter": dynamic(() => import("./developer/CssFormatterWorkspace")),
+  "html-formatter": dynamic(() => import("./developer/HtmlFormatterWorkspace")),
+  "javascript-formatter": dynamic(() => import("./developer/JavascriptFormatterWorkspace")),
+  "json-formatter": dynamic(() => import("./developer/JsonFormatterWorkspace")),
+  "json-minifier": dynamic(() => import("./developer/JsonMinifierWorkspace")),
+  "json-validator": dynamic(() => import("./developer/JsonValidatorWorkspace")),
+  "sql-formatter": dynamic(() => import("./developer/SqlFormatterWorkspace")),
+  "url-decoder": dynamic(() => import("./developer/UrlDecoderWorkspace")),
+  "url-encoder": dynamic(() => import("./developer/UrlEncoderWorkspace")),
+  "xml-formatter": dynamic(() => import("./developer/XmlFormatterWorkspace")),
+
   // image
   "color-extractor": dynamic(() => import("./image/ColorExtractorWorkspace")),
   "image-blur": dynamic(() => import("./image/ImageBlurWorkspace")),
@@ -90,9 +111,13 @@ export const WORKSPACES: Record<string, WorkspaceComponent> = {
   "video-compressor": dynamic(() => import("./video/VideoCompressor")),
   "video-converter": dynamic(() => import("./video/VideoConverter")),
   "video-cropper": dynamic(() => import("./video/VideoCropper")),
+  "video-frames": dynamic(() => import("./video/VideoFrames")),
   "video-resizer": dynamic(() => import("./video/VideoResizer")),
   "video-speed": dynamic(() => import("./video/VideoSpeed")),
+  "video-to-audio": dynamic(() => import("./video/VideoToAudio")),
+  "video-to-gif": dynamic(() => import("./video/VideoToGif")),
   "video-trimmer": dynamic(() => import("./video/VideoTrimmer")),
+  "video-watermark": dynamic(() => import("./video/VideoWatermark")),
 };
 
 export function getWorkspace(toolId: string): WorkspaceComponent | null {

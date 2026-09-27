@@ -90,6 +90,7 @@ export default function WordCounter() {
         result={result}
         outputName="word-frequency-report"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Your text"
         outputLabel="Most used words"
         inputPlaceholder="Type or paste an essay, article or chapter…"

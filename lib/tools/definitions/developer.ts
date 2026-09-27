@@ -343,6 +343,7 @@ export const DEVELOPER_TOOLS: readonly Tool[] = [
     route: "/tools/developer/base64-encoder",
     processing: "local",
     status: "stable",
+    popular: true,
     addedOn: "2026-01-19",
     actionLabel: "Encode",
     features: [

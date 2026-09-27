@@ -86,6 +86,7 @@ export default function SlugGenerator() {
         result={result}
         outputName="slug"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Page title"
         outputLabel="Slug"
         inputPlaceholder="Paste a headline or page title…"

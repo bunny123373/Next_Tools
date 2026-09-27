@@ -71,8 +71,6 @@ export function usePageThumbnails(file: File | null, limit: number): UsePageThum
   const [error, setError] = React.useState<string | null>(null);
   const [caption, setCaption] = React.useState("");
 
-  const key = file ? `${file.name}:${file.size}:${file.lastModified}` : "";
-
   React.useEffect(() => {
     setThumbnails([]);
     setPageCount(null);
@@ -122,7 +120,7 @@ export function usePageThumbnails(file: File | null, limit: number): UsePageThum
       cancelled = true;
       for (const url of urls) URL.revokeObjectURL(url);
     };
-  }, [key, limit, file]);
+  }, [limit, file]);
 
   return {
     thumbnails,
@@ -460,8 +458,7 @@ export default function PdfPageExtractorWorkspace() {
           category="pdf"
           multiple={false}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF to pick pages from."
-          emptyDescription="Click the pages you want, or type a range. Both stay in sync."
+          dropzoneLabel="Drop a PDF here to pick pages from"
           dropzoneHint={`One file at a time. The preview shows the first ${THUMBNAIL_LIMIT} pages.`}
           controls={
             <div className="grid gap-4">

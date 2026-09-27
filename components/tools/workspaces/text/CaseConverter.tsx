@@ -55,6 +55,7 @@ export default function CaseConverter() {
         result={result}
         outputName="converted-text"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Source text"
         outputLabel={selected.label}
         inputPlaceholder="Type the text you want to re-case…"

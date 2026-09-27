@@ -78,6 +78,7 @@ export default function SentenceCounter() {
         result={result}
         outputName="sentences"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Your text"
         outputLabel="Sentences"
         inputPlaceholder="Paste a paragraph or a whole page…"

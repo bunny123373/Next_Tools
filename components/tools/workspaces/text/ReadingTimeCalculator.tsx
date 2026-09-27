@@ -96,6 +96,7 @@ export default function ReadingTimeCalculator() {
         result={result}
         outputName="reading-time"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Your text"
         outputLabel="Estimate"
         inputPlaceholder="Paste an article, a script or a chapter…"

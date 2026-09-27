@@ -17,6 +17,8 @@
  *  last second of a window and then idle.
  */
 
+import "server-only";
+
 export interface RateLimitPolicy {
   /** Hits allowed inside the window. */
   limit: number;

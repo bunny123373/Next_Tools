@@ -84,6 +84,7 @@ export default function TextCleaner() {
         result={result}
         outputName="cleaned-text"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Messy text"
         outputLabel="Cleaned text"
         inputPlaceholder="Paste text copied from a PDF, a spreadsheet or a CMS…"

@@ -186,8 +186,7 @@ export default function PdfMergeWorkspace() {
           maxFiles={MAX_FILES}
           maxBytes={SITE.limits.pdf}
           reorderable
-          emptyTitle="Drop two or more PDFs to get started."
-          emptyDescription="They are merged in the order shown below. Drag a row to move it."
+          dropzoneLabel="Drop two or more PDFs here"
           dropzoneHint={`Up to ${MAX_FILES} files at a time. Password-protected PDFs cannot be merged until the password is removed.`}
           renderMeta={(file, index) => {
             const fact = facts[fileKeyOf(file, index)];

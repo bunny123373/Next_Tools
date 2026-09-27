@@ -210,8 +210,7 @@ export default function PdfRemovePasswordWorkspace() {
             category="pdf"
             multiple={false}
             maxBytes={SITE.limits.pdf}
-            emptyTitle="Drop a password-protected PDF."
-            emptyDescription="The file's encryption state is checked as soon as you add it."
+            dropzoneLabel="Drop a password-protected PDF here"
             dropzoneHint="One file at a time. The file is only uploaded when you press Remove password."
             renderMeta={() => {
               if (encrypted === null) {

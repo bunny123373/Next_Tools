@@ -22,8 +22,6 @@ import { getPdfPageCount, parsePageRange, planSplit, splitPdf, type SplitMode } 
 
 const TOOL = { id: "pdf-split", category: "pdf", processing: "local" } as const;
 
-const MAX_FILES = 30;
-
 const MODE_OPTIONS: ReadonlyArray<{ value: SplitMode; label: string }> = [
   { value: "each", label: "Every page" },
   { value: "ranges", label: "Custom ranges" },
@@ -45,8 +43,7 @@ export default function PdfSplitWorkspace() {
   const queue = useFiles({
     category: "pdf",
     maxBytes: SITE.limits.pdf,
-    multiple: true,
-    maxFiles: MAX_FILES,
+    multiple: false,
   });
   const { files } = queue;
 
@@ -135,7 +132,11 @@ export default function PdfSplitWorkspace() {
     useTransform<Options>({ transform, options: { mode, rangeText } });
 
   const bytesIn = files.reduce((sum, file) => sum + file.size, 0);
-  const canRun = files.length > 0 && pageCount !== null && !readError && !rangeError;
+  const emptyError =
+    pageCount !== null && pageCount === 0
+      ? "This PDF reports zero pages, so there is nothing to split."
+      : readError;
+  const canRun = files.length > 0 && pageCount !== null && !emptyError && !rangeError;
 
   const recordedKey = React.useRef("");
   React.useEffect(() => {
@@ -203,9 +204,8 @@ export default function PdfSplitWorkspace() {
           category="pdf"
           multiple={false}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF to split it up."
-          emptyDescription="One file at a time — add the next one after you have split this one."
-          dropzoneHint="Up to 30 files queued, split one at a time."
+          dropzoneLabel="Drop a PDF here to split it up"
+          dropzoneHint="One file at a time. Add the next one once you have downloaded this batch."
           renderMeta={() =>
             pageCount === null ? (readError ? <span className="text-brand-500">Unreadable</span> : "Reading…") : `${pageCount} pages`
           }
@@ -262,7 +262,14 @@ export default function PdfSplitWorkspace() {
                 </dl>
               ) : null}
 
-              {readError ? <ToolError detail={readError} title="This PDF could not be read." /> : null}
+              {readError ? (
+                <ToolError detail={readError} title="This PDF could not be read." />
+              ) : pageCount === 0 ? (
+                <Notice tone="warning" title="Nothing to split.">
+                  This PDF reports zero pages, so there is nothing to produce. Re-export it from the app
+                  that created it.
+                </Notice>
+              ) : null}
             </div>
           }
           action={

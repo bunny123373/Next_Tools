@@ -892,15 +892,18 @@ export function generateLorem(options: LoremOptions): LoremResult {
         ? [...LOREM_SENTENCES]
         : corpus === "bacon"
           ? [...BACON_SENTENCES]
-          : buildWordSentences(words, noRepeat);
+          : // A word list is always shuffled: emitting it in the order it was
+            // typed would repeat the same paragraph forever.
+            buildWordSentences(words);
     queue = shuffleArray(pool);
   };
   refill();
 
   const nextSentence = (): string => {
-    // The queue is fully drained before it is reshuffled, so in no-repeat mode
-    // no sentence appears twice until every other one has been used.
-    if (queue.length === 0) refill();
+    // No-repeat mode drains the whole pool before it is reshuffled, so nothing
+    // appears twice until every other sentence has been used. With it off the
+    // pool is reshuffled on every draw and repeats are allowed.
+    if (queue.length === 0 || !noRepeat) refill();
     return queue.pop() ?? LOREM_SENTENCES[0]!;
   };
 
@@ -983,10 +986,10 @@ export function generateLorem(options: LoremOptions): LoremResult {
   };
 }
 
-/** Turn a custom word list into sentences of a plausible length. */
-function buildWordSentences(words: readonly string[], noRepeat: boolean): string[] {
+/** Turn a custom word list into sentences of a plausible length, shuffled. */
+function buildWordSentences(words: readonly string[]): string[] {
   const sentences: string[] = [];
-  const pool = noRepeat ? shuffleArray(words) : words;
+  const pool = shuffleArray(words);
   const perSentence = Math.max(MIN_SENTENCE_WORDS, Math.min(MAX_SENTENCE_WORDS, Math.round(words.length / 4) || 8));
   if (words.length <= perSentence) return [`${words.join(" ")}.`];
   for (let i = 0; i < pool.length; i += perSentence) {

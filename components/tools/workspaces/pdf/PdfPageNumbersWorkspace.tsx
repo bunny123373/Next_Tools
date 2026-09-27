@@ -201,8 +201,7 @@ export default function PdfPageNumbersWorkspace() {
           category="pdf"
           multiple={false}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF to number its pages."
-          emptyDescription="Choose where the number sits, what it looks like, and whether to skip the cover."
+          dropzoneLabel="Drop a PDF here to number its pages"
           dropzoneHint="One file at a time. Numbers are drawn with the built-in Helvetica, so nothing needs embedding."
           renderMeta={() =>
             pageCount === null ? (readError ? <span className="text-brand-500">Unreadable</span> : "Reading…") : `${pageCount} pages`

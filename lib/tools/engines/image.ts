@@ -506,8 +506,8 @@ export interface ReencodeOptions {
 export async function reencode(blob: Blob, options: ReencodeOptions): Promise<EncodedImage> {
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
-    const fitted = fitSize(source, {
+    const natural: ImageSize = { width: source.width, height: source.height };
+    const fitted = fitSize(natural, {
       maxWidth: options.maxWidth,
       maxHeight: options.maxHeight,
       allowUpscale: options.allowUpscale,
@@ -516,7 +516,7 @@ export async function reencode(blob: Blob, options: ReencodeOptions): Promise<En
     const height = options.height ?? fitted.height;
 
     const out = await renderToBlob(
-      bitmap,
+      source,
       { width, height, background: options.background ?? null, filter: options.filter ?? null },
       options.type,
       options.quality,
@@ -567,7 +567,7 @@ export interface RotateOptions {
 export async function rotate(blob: Blob, options: RotateOptions): Promise<EncodedImage> {
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
+    const natural: ImageSize = { width: source.width, height: source.height };
     const normalised = ((options.degrees % 360) + 360) % 360;
     const onQuarterTurn = normalised % 90 === 0;
     const quarterTurn = Math.round(normalised / 90) % 4;
@@ -576,24 +576,24 @@ export async function rotate(blob: Blob, options: RotateOptions): Promise<Encode
     let height: number;
     if (onQuarterTurn) {
       const swaps = quarterTurn % 2 === 1;
-      width = swaps ? source.height : source.width;
-      height = swaps ? source.width : source.height;
+      width = swaps ? natural.height : natural.width;
+      height = swaps ? natural.width : natural.height;
     } else {
       const rad = (normalised * Math.PI) / 180;
       const cos = Math.abs(Math.cos(rad));
       const sin = Math.abs(Math.sin(rad));
-      width = Math.max(1, Math.round(source.width * cos + source.height * sin));
-      height = Math.max(1, Math.round(source.width * sin + source.height * cos));
+      width = Math.max(1, Math.round(natural.width * cos + natural.height * sin));
+      height = Math.max(1, Math.round(natural.width * sin + natural.height * cos));
     }
 
     const out = await renderToBlob(
-      bitmap,
+      source,
       {
         width,
         height,
         background: options.background ?? null,
         paint: transformPaint(
-          source,
+          natural,
           normalised,
           Boolean(options.flipHorizontal),
           Boolean(options.flipVertical),
@@ -651,17 +651,17 @@ export interface CropOptions {
 export async function crop(blob: Blob, options: CropOptions): Promise<EncodedImage> {
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
-    const rect = clampRect(options.rect, source);
+    const natural: ImageSize = { width: source.width, height: source.height };
+    const rect = clampRect(options.rect, natural);
     const out = await renderToBlob(
-      bitmap,
+      source,
       {
         width: rect.width,
         height: rect.height,
         background: options.background ?? null,
         paint: (ctx) => {
           ctx.drawImage(
-            bitmap as CanvasImageSource,
+            source,
             rect.x,
             rect.y,
             rect.width,
@@ -708,31 +708,31 @@ export async function blur(blob: Blob, options: BlurOptions): Promise<EncodedIma
 
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
+    const natural: ImageSize = { width: source.width, height: source.height };
     const radius = Math.max(0, options.radius);
-    const bleed = Math.min(radius, Math.floor(Math.min(source.width, source.height) * 0.03));
+    const bleed = Math.min(radius, Math.floor(Math.min(natural.width, natural.height) * 0.03));
 
     const out = await renderToBlob(
-      bitmap,
+      source,
       {
-        width: source.width,
-        height: source.height,
+        width: natural.width,
+        height: natural.height,
         background: options.background ?? null,
         filter: `blur(${radius}px)`,
         paint: (ctx) => {
           ctx.drawImage(
-            bitmap as CanvasImageSource,
+            source,
             -bleed,
             -bleed,
-            source.width + bleed * 2,
-            source.height + bleed * 2,
+            natural.width + bleed * 2,
+            natural.height + bleed * 2,
           );
         },
       },
       options.type,
       options.quality,
     );
-    return { blob: out, width: source.width, height: source.height, type: options.type };
+    return { blob: out, width: natural.width, height: natural.height, type: options.type };
   } finally {
     releaseSource(source);
   }
@@ -754,10 +754,10 @@ export interface PixelateOptions {
 export async function pixelate(blob: Blob, options: PixelateOptions): Promise<EncodedImage> {
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
+    const natural: ImageSize = { width: source.width, height: source.height };
     const block = Math.max(2, Math.round(options.pixelSize));
-    const smallW = Math.max(1, Math.round(source.width / block));
-    const smallH = Math.max(1, Math.round(source.height / block));
+    const smallW = Math.max(1, Math.round(natural.width / block));
+    const smallH = Math.max(1, Math.round(natural.height / block));
 
     const small = createCanvas(smallW, smallH);
     small.ctx.imageSmoothingEnabled = true;
@@ -766,18 +766,18 @@ export async function pixelate(blob: Blob, options: PixelateOptions): Promise<En
       small.ctx.fillStyle = options.background;
       small.ctx.fillRect(0, 0, smallW, smallH);
     }
-    small.ctx.drawImage(bitmap, 0, 0, smallW, smallH);
+    small.ctx.drawImage(source, 0, 0, smallW, smallH);
 
-    const { canvas, ctx } = createCanvas(source.width, source.height);
+    const { canvas, ctx } = createCanvas(natural.width, natural.height);
     if (options.background) {
       ctx.fillStyle = options.background;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(small.canvas, 0, 0, smallW, smallH, 0, 0, source.width, source.height);
+    ctx.drawImage(small.canvas, 0, 0, smallW, smallH, 0, 0, natural.width, natural.height);
 
     const out = await canvasToBlob(canvas, options.type, options.quality);
-    return { blob: out, width: source.width, height: source.height, type: options.type };
+    return { blob: out, width: natural.width, height: natural.height, type: options.type };
   } finally {
     releaseSource(source);
   }
@@ -812,33 +812,33 @@ export async function grayscale(blob: Blob, options: GrayscaleOptions): Promise<
 
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
+    const natural: ImageSize = { width: source.width, height: source.height };
 
     if (canFilter) {
       const out = await renderToBlob(
-        bitmap,
+        source,
         {
-          width: source.width,
-          height: source.height,
+          width: natural.width,
+          height: natural.height,
           background: options.background ?? null,
           filter: `grayscale(${amount}%)`,
         },
         options.type,
         options.quality,
       );
-      return { blob: out, width: source.width, height: source.height, type: options.type };
+      return { blob: out, width: natural.width, height: natural.height, type: options.type };
     }
 
-    const { canvas, ctx } = drawToCanvas(bitmap, {
-      width: source.width,
-      height: source.height,
+    const { canvas, ctx } = drawToCanvas(source, {
+      width: natural.width,
+      height: natural.height,
       background: options.background ?? null,
     });
 
     const strength = amount / 100;
-    for (let y = 0; y < source.height; y += BAND_ROWS) {
-      const rows = Math.min(BAND_ROWS, source.height - y);
-      const band = ctx.getImageData(0, y, source.width, rows);
+    for (let y = 0; y < natural.height; y += BAND_ROWS) {
+      const rows = Math.min(BAND_ROWS, natural.height - y);
+      const band = ctx.getImageData(0, y, natural.width, rows);
       const data = band.data;
       for (let i = 0; i < data.length; i += 4) {
         if (data[i + 3] === 0) continue;
@@ -852,7 +852,7 @@ export async function grayscale(blob: Blob, options: GrayscaleOptions): Promise<
     }
 
     const out = await canvasToBlob(canvas, options.type, options.quality);
-    return { blob: out, width: source.width, height: source.height, type: options.type };
+    return { blob: out, width: natural.width, height: natural.height, type: options.type };
   } finally {
     releaseSource(source);
   }
@@ -953,8 +953,10 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
   let logoSource: LoadedSource | null = null;
 
   try {
-    const natural: ImageSize = { width: bitmap.width, height: bitmap.height };
-    const source = fitSize(natural, {
+    const decoded: ImageSize = { width: source.width, height: source.height };
+    // Text and logo sizes are relative to the image, so a bounded render is
+    // proportional rather than different — that is what previews rely on.
+    const canvasSize = fitSize(decoded, {
       maxWidth: options.maxWidth,
       maxHeight: options.maxHeight,
     });
@@ -964,13 +966,13 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
     }
 
     const out = await renderToBlob(
-      bitmap,
+      source,
       {
-        width: source.width,
-        height: source.height,
+        width: canvasSize.width,
+        height: canvasSize.height,
         background: options.background ?? null,
         paint: (ctx) => {
-          ctx.drawImage(bitmap as CanvasImageSource, 0, 0, source.width, source.height);
+          ctx.drawImage(source, 0, 0, canvasSize.width, canvasSize.height);
           if (options.mode === "logo") {
             if (!logoSource) return;
             const logoW = Math.max(1, Math.round(source.width * (options.widthPercent / 100)));
@@ -978,7 +980,7 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
               1,
               Math.round(logoW * (logoSource.height / Math.max(1, logoSource.width))),
             );
-            const [ax, ay] = anchorFor(options.position, source.width, source.height);
+            const [ax, ay] = anchorFor(options.position, canvasSize.width, canvasSize.height);
             ctx.save();
             ctx.globalAlpha = Math.min(1, Math.max(0, options.opacity / 100));
             ctx.translate(ax, ay);
@@ -990,7 +992,10 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
 
           const text = options.text.trim();
           if (!text) return;
-          const fontSize = Math.max(8, Math.round(Math.min(source.width, source.height) * (options.sizePercent / 100)));
+          const fontSize = Math.max(
+            8,
+            Math.round(Math.min(canvasSize.width, canvasSize.height) * (options.sizePercent / 100)),
+          );
           const weight = options.bold ? "700" : "500";
           const style = options.italic ? "italic " : "";
           ctx.save();
@@ -998,7 +1003,7 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.globalAlpha = Math.min(1, Math.max(0, options.opacity / 100));
-          const [ax, ay] = anchorFor(options.position, source.width, source.height);
+          const [ax, ay] = anchorFor(options.position, canvasSize.width, canvasSize.height);
           ctx.translate(ax, ay);
           ctx.rotate((options.rotation * Math.PI) / 180);
           // A thin dark outline keeps light text legible on light photos.
@@ -1015,7 +1020,12 @@ export async function watermark(blob: Blob, options: WatermarkOptions): Promise<
       options.quality,
     );
 
-    return { blob: out, width: source.width, height: source.height, type: options.type };
+    return {
+      blob: out,
+      width: canvasSize.width,
+      height: canvasSize.height,
+      type: options.type,
+    };
   } finally {
     releaseSource(source);
     logoSource?.close();
@@ -1091,9 +1101,9 @@ async function samplePixels(
 ): Promise<{ pixels: Uint8ClampedArray; size: ImageSize }> {
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
-    const size = fitSize(source, { maxWidth: maxEdge, maxHeight: maxEdge });
-    const { canvas, ctx } = drawToCanvas(bitmap, size);
+    const natural: ImageSize = { width: source.width, height: source.height };
+    const size = fitSize(natural, { maxWidth: maxEdge, maxHeight: maxEdge });
+    const { canvas, ctx } = drawToCanvas(source, size);
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
     return { pixels: data, size: { width: canvas.width, height: canvas.height } };
   } finally {
@@ -1259,11 +1269,11 @@ export async function sampleColorAtRatio(
 ): Promise<{ hex: string; rgb: [number, number, number] }> {
   const source = await loadSource(blob);
   try {
-    const source: ImageSize = { width: bitmap.width, height: bitmap.height };
+    const natural: ImageSize = { width: source.width, height: source.height };
     // Huge photos are sampled from a bounded render — the average colour of a
     // small region is the same thing at a fraction of the memory.
-    const size = fitSize(source, { maxWidth: 4096, maxHeight: 4096 });
-    const { ctx } = drawToCanvas(bitmap, size);
+    const size = fitSize(natural, { maxWidth: 4096, maxHeight: 4096 });
+    const { ctx } = drawToCanvas(source, size);
 
     const x = Math.min(size.width - 1, Math.max(0, Math.round(ratioX * size.width)));
     const y = Math.min(size.height - 1, Math.max(0, Math.round(ratioY * size.height)));
@@ -1561,6 +1571,7 @@ function parseJpeg(view: DataView): {
     if (marker === 0xd9 || marker === 0xda) break;
 
     const length = view.getUint16(offset + 2);
+    if (length < 2) break;
     const payload = offset + 4;
 
     if (marker === 0xe1 && !exif && payload + 10 <= view.byteLength) {
@@ -1579,7 +1590,6 @@ function parseJpeg(view: DataView): {
     }
 
     offset = payload + length - 2;
-    if (length < 2) break;
   }
 
   return { size: size.width > 0 && size.height > 0 ? size : null, exif };
@@ -1821,7 +1831,15 @@ export async function readImageMetadata(file: Blob): Promise<ImageMetadata> {
     decoded = { width: bitmap.width, height: bitmap.height };
     releaseSource(source);
   } catch (error) {
-    decodeError = error instanceof Error ? error.message : "The image could not be decoded.";
+    // A browser with no createImageBitmap can still draw the image, so try the
+    // lenient path before reporting a decode failure.
+    try {
+      const source = await loadSource(file);
+      decoded = { width: source.width, height: source.height };
+      releaseSource(source);
+    } catch {
+      decodeError = error instanceof Error ? error.message : "The image could not be decoded.";
+    }
   }
 
   const fallsBack = size ?? decoded;

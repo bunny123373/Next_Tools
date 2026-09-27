@@ -171,8 +171,7 @@ export default function PngToPdfWorkspace() {
           maxFiles={MAX_FILES}
           maxBytes={SITE.limits.image}
           reorderable
-          emptyTitle="Drop your PNG images to get started."
-          emptyDescription="Each image becomes one page. Drag the list to change the page order."
+          dropzoneLabel="Drop your PNG images here"
           dropzoneHint={`PNG only, up to ${MAX_FILES} at a time. Images are embedded losslessly, so the PDF will be close to the sum of the originals.`}
           controls={
             <div className="grid gap-4">

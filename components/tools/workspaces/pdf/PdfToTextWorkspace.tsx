@@ -225,8 +225,7 @@ export default function PdfToTextWorkspace() {
           category="pdf"
           multiple={false}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF to read its text."
-          emptyDescription="This reads the embedded text layer. A scanned page has none, and we will say so."
+          dropzoneLabel="Drop a PDF here to read its text"
           dropzoneHint="One file at a time. Nothing is uploaded and no text is stored anywhere."
           renderMeta={() =>
             pageCount === null ? (readError ? <span className="text-brand-500">Unreadable</span> : "Reading…") : `${pageCount} pages`

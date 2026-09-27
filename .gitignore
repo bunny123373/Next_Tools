@@ -47,3 +47,7 @@ yarn-error.log*
 # Editors
 .idea/
 .vscode/
+
+# Build/typecheck logs
+.build-log.txt
+.tsc-errors.txt

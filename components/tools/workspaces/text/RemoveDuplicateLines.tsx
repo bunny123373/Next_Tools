@@ -58,6 +58,7 @@ export default function RemoveDuplicateLines() {
         result={result}
         outputName="deduplicated-lines"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Your list"
         outputLabel="Deduplicated"
         inputPlaceholder="Paste a list with repeats, one entry per line…"

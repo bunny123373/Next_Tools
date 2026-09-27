@@ -1,69 +1,50 @@
 import "server-only";
 
 /**
- * AI provider configuration.
+ * AI provider status, for callers that only need to know *whether* AI is
+ * available — the admin panel, /api/health, /api-docs and the tool builder.
  *
- * This is the ONLY place environment variables are read for the AI features,
- * and it is `server-only` so a bundler error surfaces at build time if any
- * client component ever imports it.
+ * IMPORTANT: this module deliberately does NOT read `process.env` itself. It
+ * delegates to the provider layer, which is the single place AI configuration
+ * is interpreted. An earlier version of this file had its own reader, which
+ * caused two real bugs:
+ *
+ *   1. It treated an empty `AI_API_KEY` as "not configured". That is wrong for
+ *      a local provider — Ollama, LM Studio and vLLM need no credential at
+ *      all, so those deployments would have been told their AI tools were
+ *      broken while they worked fine.
+ *   2. It read `AI_MAX_OUTPUT` while the provider read `AI_MAX_OUTPUT_TOKENS`,
+ *      so the two could disagree about the same setting.
+ *
+ * Both are the class of bug that comes from having two readers of one source of
+ * truth. `lib/ai/provider.ts` is the only reader now.
  *
  * SECURITY: `AI_API_KEY` is a plain server variable. It must never be a
- * `NEXT_PUBLIC_*` variable — anything prefixed that way is inlined into the
- * JavaScript bundle and readable by anyone who opens the page. If you find
- * yourself wanting to reach the key from a component, the answer is always
- * another API route.
+ * `NEXT_PUBLIC_*` variable — anything with that prefix is inlined into the
+ * JavaScript bundle and readable by anyone who opens the page. If you want to
+ * reach the key from a component, the answer is always another API route.
  *
- * Recognised variables:
- *   AI_PROVIDER       provider id (default: "openai-compatible")
- *   AI_API_KEY        the credential — required
- *   AI_BASE_URL       OpenAI-compatible base URL (default: OpenAI)
- *   AI_MODEL          chat model id
- *   AI_IMAGE_MODEL    image model id
- *   AI_TIMEOUT_MS     upstream timeout, default 60000
- *   AI_MAX_OUTPUT     max output tokens, default 2000
+ * Recognised variables (all read by lib/ai/provider.ts):
+ *   AI_PROVIDER        provider id (default: "openai-compatible")
+ *   AI_API_KEY         credential — may be empty for a local provider
+ *   AI_BASE_URL        OpenAI-compatible base URL (default: OpenAI)
+ *   AI_MODEL           chat model id
+ *   AI_IMAGE_MODEL     image model id
+ *   AI_TIMEOUT_MS      upstream timeout
+ *   AI_MAX_OUTPUT_TOKENS  max output tokens
  */
 
-export interface AiConfig {
-  provider: string;
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-  imageModel: string | null;
-  timeoutMs: number;
-  maxOutputTokens: number;
-}
+import {
+  getAiConfig,
+  getConfiguredProviderName,
+  type ProviderConfig,
+} from "./provider";
 
-const DEFAULT_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_MODEL = "gpt-4o-mini";
-const DEFAULT_TIMEOUT_MS = 60_000;
-const DEFAULT_MAX_OUTPUT = 2000;
+export type { ProviderConfig };
+/** Re-exported so callers can narrow on the same type the provider uses. */
+export type AiConfig = ProviderConfig;
 
-function readInt(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
-}
-
-/**
- * Returns the resolved config, or null when the provider is not configured.
- * Callers must handle null — that is the "setup required" path.
- */
-export function getAiConfig(): AiConfig | null {
-  const apiKey = process.env.AI_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  return {
-    provider: process.env.AI_PROVIDER?.trim() || "openai-compatible",
-    apiKey,
-    baseUrl: (process.env.AI_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, ""),
-    model: process.env.AI_MODEL?.trim() || DEFAULT_MODEL,
-    imageModel: process.env.AI_IMAGE_MODEL?.trim() || null,
-    timeoutMs: readInt(process.env.AI_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-    maxOutputTokens: readInt(process.env.AI_MAX_OUTPUT, DEFAULT_MAX_OUTPUT),
-  };
-}
-
-/** True when an AI provider is available. Never reveals the key. */
+/** True when an AI provider is available. Never reveals the credential. */
 export function isAiConfigured(): boolean {
   return getAiConfig() !== null;
 }
@@ -78,12 +59,26 @@ export interface AiPublicStatus {
   model: string | null;
   imageModel: boolean;
   baseUrlHost: string | null;
+  /**
+   * True when the endpoint is a local/self-hosted provider, where an empty
+   * API key is expected rather than a misconfiguration.
+   */
+  localProvider: boolean;
 }
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal"]);
 
 export function getAiPublicStatus(): AiPublicStatus {
   const config = getAiConfig();
   if (!config) {
-    return { configured: false, provider: null, model: null, imageModel: false, baseUrlHost: null };
+    return {
+      configured: false,
+      provider: null,
+      model: null,
+      imageModel: false,
+      baseUrlHost: null,
+      localProvider: false,
+    };
   }
 
   let baseUrlHost: string | null = null;
@@ -95,11 +90,21 @@ export function getAiPublicStatus(): AiPublicStatus {
 
   return {
     configured: true,
-    provider: config.provider,
+    provider: getConfiguredProviderName(),
     model: config.model,
     imageModel: config.imageModel !== null,
     baseUrlHost,
+    localProvider: isLocalEndpoint(config),
   };
+}
+
+function isLocalEndpoint(config: ProviderConfig): boolean {
+  try {
+    const { hostname } = new URL(config.baseUrl);
+    return LOCAL_HOSTS.has(hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 /** The env vars an operator needs, in copy-paste form. */
@@ -112,6 +117,9 @@ export const AI_SETUP_INSTRUCTIONS = `Add these to your environment and restart 
 AI_BASE_URL can point at any OpenAI-compatible endpoint: OpenAI, Groq,
 Together, OpenRouter, Ollama, LM Studio or vLLM. AI_IMAGE_MODEL is only
 needed for the AI image tools.
+
+For a local provider (Ollama, LM Studio, vLLM) you can leave AI_API_KEY
+empty and set AI_BASE_URL to its address instead.
 
 Keep AI_API_KEY server-side. A NEXT_PUBLIC_ prefix would publish it in the
 browser bundle.`;

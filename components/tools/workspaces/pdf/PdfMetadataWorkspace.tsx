@@ -214,8 +214,7 @@ export default function PdfMetadataWorkspace() {
             category="pdf"
             multiple={false}
             maxBytes={SITE.limits.pdf}
-            emptyTitle="Drop a PDF to read its document properties."
-            emptyDescription="Everything shown is read from the file — nothing is inferred from its name."
+            dropzoneLabel="Drop a PDF here to read its properties"
             dropzoneHint="One file at a time. Reading the properties does not change the file."
             renderMeta={() =>
               reading ? "Reading…" : info ? `${info.pageCount} pages` : undefined

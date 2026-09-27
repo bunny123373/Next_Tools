@@ -97,6 +97,7 @@ export default function TextSorter() {
         result={result}
         outputName="sorted-text"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Your list"
         outputLabel="Sorted"
         inputPlaceholder="Paste a list — one entry per line, or comma separated…"

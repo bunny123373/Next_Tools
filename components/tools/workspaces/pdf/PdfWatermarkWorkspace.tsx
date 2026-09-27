@@ -222,8 +222,7 @@ export default function PdfWatermarkWorkspace() {
           category="pdf"
           multiple={false}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF to watermark."
-          emptyDescription="One large diagonal mark, or a tiled grid across every page."
+          dropzoneLabel="Drop a PDF here to watermark"
           dropzoneHint="One file at a time. The mark is drawn in the built-in Helvetica, so nothing needs embedding."
           renderMeta={() =>
             pageCount === null ? (readError ? <span className="text-brand-500">Unreadable</span> : "Reading…") : `${pageCount} pages`

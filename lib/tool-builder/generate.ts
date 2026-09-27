@@ -18,8 +18,11 @@ import "server-only";
  * before it is used. A hallucinated or malicious response cannot escape the enum.
  */
 
-import { TOOL_MAP, type Tool } from "@/lib/tools/registry";
-import { getAiConfig } from "@/lib/ai/config";
+import { getTool, type Tool } from "@/lib/tools/registry";
+// Credential-bearing config comes from the provider layer directly. The
+// `./config` module is the public-status surface and deliberately does not
+// re-export the key.
+import { getAiConfig } from "@/lib/ai/provider";
 import { TEMPLATES, isTemplateId, type TemplateId, type ToolTemplate } from "./templates";
 
 export { TEMPLATES, isTemplateId };
@@ -134,7 +137,7 @@ export async function generateToolConfig(
     const aiId = await aiMatch(trimmed, config.apiKey, config.baseUrl, config.model);
     if (aiId) {
       const template = TEMPLATES.find((t) => t.id === aiId)!;
-      const baseTool = TOOL_MAP.get(template.baseToolId);
+      const baseTool = getTool(template.baseToolId);
       if (baseTool) {
         return {
           template,
@@ -149,7 +152,7 @@ export async function generateToolConfig(
 
   const local = localMatch(trimmed);
   if (local) {
-    const baseTool = TOOL_MAP.get(local.template.baseToolId);
+    const baseTool = getTool(local.template.baseToolId);
     if (baseTool) {
       return {
         template: local.template,

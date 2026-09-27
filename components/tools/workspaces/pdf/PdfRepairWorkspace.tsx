@@ -144,8 +144,7 @@ export default function PdfRepairWorkspace() {
           category="pdf"
           multiple={false}
           maxBytes={SITE.limits.pdf}
-          emptyTitle="Drop a PDF that will not open."
-          emptyDescription="It is parsed, its cross-reference table is rebuilt, and you get a clean file back."
+          dropzoneLabel="Drop a PDF here that will not open"
           dropzoneHint="One file at a time. Structural repair only — content that is genuinely missing cannot be recovered."
           controls={
             <div className="grid gap-4">

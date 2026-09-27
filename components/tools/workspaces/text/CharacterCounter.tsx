@@ -113,6 +113,7 @@ export default function CharacterCounter() {
         result={result}
         outputName="character-report"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Your text"
         outputLabel="Character breakdown"
         inputPlaceholder="Paste the meta description, post or SMS here…"

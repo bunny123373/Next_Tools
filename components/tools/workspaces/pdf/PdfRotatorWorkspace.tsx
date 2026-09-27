@@ -215,8 +215,7 @@ export default function PdfRotatorWorkspace() {
             category="pdf"
             multiple={false}
             maxBytes={SITE.limits.pdf}
-            emptyTitle="Drop a PDF to rotate."
-            emptyDescription="Turn a sideways scan the right way up — all pages, or just the ones you pick."
+            dropzoneLabel="Drop a PDF here to rotate"
             dropzoneHint={`One file at a time. The preview shows the first ${THUMBNAIL_LIMIT} pages.`}
             controls={
               <div className="grid gap-4">
@@ -405,7 +404,6 @@ function RotationPreview({
   const [blob, setBlob] = React.useState<Blob | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const url = useObjectUrl(blob);
-  const key = `${file.name}:${file.size}:${pageIndex}`;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -423,7 +421,7 @@ function RotationPreview({
     return () => {
       cancelled = true;
     };
-  }, [key, file, pageIndex]);
+  }, [file, pageIndex]);
 
   const quarterTurn = angle === 90 || angle === 270;
 

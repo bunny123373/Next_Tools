@@ -240,8 +240,7 @@ export default function PdfProtectWorkspace() {
             category="pdf"
             multiple={false}
             maxBytes={SITE.limits.pdf}
-            emptyTitle="Drop a PDF to protect."
-            emptyDescription="Set the passwords and permissions. Encryption is done by a server service this deployment has not configured yet."
+            dropzoneLabel="Drop a PDF here to protect"
             dropzoneHint="One file at a time. The file is only uploaded when you press Encrypt PDF."
             renderMeta={() =>
               pageCount === null ? (readError ? <span className="text-brand-500">Unreadable</span> : "Reading…") : `${pageCount} pages`

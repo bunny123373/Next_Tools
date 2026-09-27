@@ -178,6 +178,7 @@ export default function FindReplace() {
         result={result}
         outputName="find-replace-result"
         extension="txt"
+        mime="text/plain;charset=utf-8"
         inputLabel="Text to search"
         outputLabel={outputLabel}
         inputPlaceholder="Paste the text you want to change…"

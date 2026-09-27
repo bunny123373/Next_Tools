@@ -173,8 +173,7 @@ export default function JpgToPdfWorkspace() {
           maxFiles={MAX_FILES}
           maxBytes={SITE.limits.image}
           reorderable
-          emptyTitle="Drop your JPG photos to get started."
-          emptyDescription="Each photo becomes one page. Drag the list to change the page order."
+          dropzoneLabel="Drop your JPG photos here"
           dropzoneHint={`JPG only, up to ${MAX_FILES} at a time. The original JPEG bytes are embedded — nothing is re-encoded.`}
           controls={
             <div className="grid gap-4">

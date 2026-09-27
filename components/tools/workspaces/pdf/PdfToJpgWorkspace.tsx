@@ -258,8 +258,7 @@ export default function PdfToJpgWorkspace() {
             category="pdf"
             multiple={false}
             maxBytes={SITE.limits.pdf}
-            emptyTitle="Drop a PDF to render as images."
-            emptyDescription="Click the pages you want, set a resolution, and export."
+            dropzoneLabel="Drop a PDF here to render as images"
             dropzoneHint={`One file at a time. The preview shows the first ${THUMBNAIL_LIMIT} pages.`}
             controls={
               <div className="grid gap-4">
