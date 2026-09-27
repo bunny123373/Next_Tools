@@ -109,7 +109,7 @@ export default function Base64EncoderWorkspace() {
               )}
             </Field>
             <Field label="Line width" hint="0 means one unbroken line.">
-              {() => (
+              {({ id, describedBy }) => (
                 <Select
                   id={id}
                   aria-describedby={describedBy}

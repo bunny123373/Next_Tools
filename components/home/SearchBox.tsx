@@ -30,7 +30,15 @@ export function SearchBox({ className, size = "lg" }: SearchBoxProps) {
   );
   const showPanel = focused && query.trim().length > 0;
 
-  React.useEffect(() => setActiveIndex(0), [query]);
+  // Reset the highlighted row when the result set changes. Done during render
+  // rather than in an effect: React's documented "adjusting state when props
+  // change" pattern. An effect would render once with a stale index — briefly
+  // highlighting a row that no longer exists — and then cascade a second pass.
+  const [lastQuery, setLastQuery] = React.useState(query);
+  if (query !== lastQuery) {
+    setLastQuery(query);
+    setActiveIndex(0);
+  }
 
   // Dismiss on an outside click.
   React.useEffect(() => {

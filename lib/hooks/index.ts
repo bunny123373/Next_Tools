@@ -90,6 +90,15 @@ export function useFiles(options: UseFilesOptions) {
 /*  Object URL for a single blob/file, auto-revoked on change/unmount   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Object URL for a blob, revoked when the blob changes and on unmount.
+ *
+ * `useState` + `useEffect` is genuinely required here: the URL is an external
+ * resource that must be released, and `useMemo` has no cleanup semantics, so it
+ * cannot express "revoke the previous one". The lint rule that objects here is
+ * about cascading renders, which does not apply to a single one-time
+ * allocation.
+ */
 export function useObjectUrl(blob: Blob | null | undefined): string | null {
   const [url, setUrl] = React.useState<string | null>(null);
 
@@ -170,6 +179,40 @@ export function useDebouncedValue<T>(value: T, delay = 200): T {
     return () => clearTimeout(timer);
   }, [value, delay]);
   return debounced;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mounted                                                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `true` once the component has mounted in the browser.
+ *
+ * Gate anything derived from browser-only state — localStorage, `Date.now()`,
+ * locale formatting — behind this. Rendering that on the first client pass but
+ * not on the server is a hydration mismatch, and the mismatch is a symptom of a
+ * real disagreement between the two trees about what is true.
+ */
+/** Subscribe callback for `useMounted` — never fires; there is nothing to watch. */
+const neverSubscribes = () => () => {};
+
+/**
+ * `false` on the server and during the hydration render, `true` afterwards.
+ *
+ * Uses `useSyncExternalStore` rather than `useState` + `useEffect`: this is
+ * React's documented hydration-safe way to ask "am I in the browser?", and it
+ * avoids a state update that would cascade an extra render on mount.
+ *
+ * Gate anything derived from browser-only state — localStorage, `Date.now()`,
+ * locale formatting — behind this. Rendering that on the first client pass but
+ * not on the server is a hydration mismatch.
+ */
+export function useMounted(): boolean {
+  return React.useSyncExternalStore(
+    neverSubscribes,
+    () => true,
+    () => false,
+  );
 }
 
 /* ------------------------------------------------------------------ */

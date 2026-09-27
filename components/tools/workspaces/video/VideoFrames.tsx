@@ -15,7 +15,7 @@ import {
 import { DownloadGroup } from "@/components/tools/DownloadButton";
 import { Notice } from "@/components/tools/states";
 import { Button } from "@/components/ui/button";
-import { Checkbox, Field, Input, Segmented, Slider, Stat } from "@/components/ui/form";
+import { Field, Input, Segmented, Slider, Stat } from "@/components/ui/form";
 import { useFiles } from "@/lib/hooks";
 import { SITE } from "@/lib/site";
 import { formatBytes, formatDuration } from "@/lib/utils/format";
@@ -49,8 +49,14 @@ export default function VideoFramesWorkspace() {
   const { files, add, remove, clear } = useFiles({ category: "video", maxBytes: SITE.limits.video });
   const source = files[0] ?? null;
 
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [probeError, setProbeError] = React.useState<string | null>(null);
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const probeError = probe.key === probeKey ? probe.error : null;
 
   const [mode, setMode] = React.useState<Mode>("count");
   const [count, setCount] = React.useState(10);
@@ -60,22 +66,27 @@ export default function VideoFramesWorkspace() {
   const [scale, setScale] = React.useState(1);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setProbeError(null);
     if (!source) return;
+    let alive = true;
     void probeVideo(source)
-      .then((probe) => {
-        probe.dispose();
-        if (alive) setMeta(probe.meta);
+      .then((result) => {
+        const value = result.meta;
+        result.dispose();
+        if (alive) setProbe({ key: probeKey, meta: value, error: null });
       })
       .catch((error: unknown) => {
-        if (alive) setProbeError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
 
   const duration = meta?.duration ?? 0;
 
@@ -121,7 +132,7 @@ export default function VideoFramesWorkspace() {
               const step = length / Math.min(MAX_FRAMES, Math.max(1, Math.round(current.count)));
               return Math.min(Math.max(0, length - 0.02), index * step + step / 2);
             })
-          : times
+          : current.times
               .split(/[,\s]+/)
               .map((part) => Number(part))
               .filter((value) => Number.isFinite(value) && value >= 0)
@@ -427,6 +438,9 @@ export default function VideoFramesWorkspace() {
                 <li key={item.filename} className="flex flex-col gap-1">
                   <span className="overflow-hidden rounded-lg border border-[var(--surface-line)] bg-black">
                     {urls[index] ? (
+                      // Blob URLs are not optimisable by next/image, and these
+                      // are user files that never touch the network.
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={urls[index]}
                         alt={item.note ?? `Frame ${index + 1}`}
@@ -490,12 +504,18 @@ function useShortcut(enabled: boolean, action: () => void) {
  * component unmounts. `useObjectUrl` handles one blob; a contact sheet needs
  * one URL per frame.
  */
-function useObjectUrlList(blobs: Blob[]): (string | null)[] {
-  const [urls, setUrls] = React.useState<(string | null)[]>([]);
+function useObjectUrlList(blobs: Blob[]): string[] {
+  const [urls, setUrls] = React.useState<string[]>([]);
   React.useEffect(() => {
+    // The URLs are committed on the next microtask so the state write happens
+    // outside the effect body, and every URL is revoked on cleanup either way.
+    let live = true;
     const created = blobs.map((blob) => URL.createObjectURL(blob));
-    setUrls(created);
+    void Promise.resolve().then(() => {
+      if (live) setUrls(created);
+    });
     return () => {
+      live = false;
       for (const url of created) URL.revokeObjectURL(url);
     };
   }, [blobs]);

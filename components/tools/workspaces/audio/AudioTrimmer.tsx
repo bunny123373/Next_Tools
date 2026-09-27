@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Info, Play, Scissors, Square, TriangleAlert } from "lucide-react";
+import { Info, Play, Scissors, Square } from "lucide-react";
 import { ToolShell, PrivacyNote } from "@/components/tools/ToolShell";
 import {
   FileStage,
@@ -470,7 +470,7 @@ export default function AudioTrimmerWorkspace() {
 
               {format === "mp3" ? (
                 <Field label="MP3 bitrate" hint="MP3 only supports 44.1 and 48 kHz; anything else is resampled.">
-                  {({ id }) => (
+                  {() => (
                     <Segmented
                       label="MP3 bitrate"
                       size="sm"
@@ -482,7 +482,7 @@ export default function AudioTrimmerWorkspace() {
                 </Field>
               ) : (
                 <Field label="WAV bit depth" hint="16-bit matches CD; 24-bit leaves headroom for further processing.">
-                  {({ id }) => (
+                  {() => (
                     <Segmented
                       label="WAV bit depth"
                       size="sm"

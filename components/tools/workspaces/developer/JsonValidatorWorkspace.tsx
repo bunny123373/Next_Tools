@@ -3,7 +3,7 @@
 import * as React from "react";
 import { AlertTriangle, Check, CircleAlert, Info, ShieldCheck } from "lucide-react";
 import { ToolShell } from "@/components/tools/ToolShell";
-import { Field, Segmented, Select, Textarea, Checkbox } from "@/components/ui/form";
+import { Field, Segmented, Textarea, Checkbox } from "@/components/ui/form";
 import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";
 import { Notice, ToolEmptyState } from "@/components/tools/states";
 import { cn } from "@/lib/utils/cn";
@@ -111,7 +111,6 @@ export default function JsonValidatorWorkspace() {
   }, [tier, useSchema, schema, schemaReport.error]);
 
   const syntaxOk = parsed?.ok === true;
-  const errors = findings.filter((finding) => finding.severity === "error");
 
   const reportText = React.useMemo(() => {
     if (tier === "syntax") {

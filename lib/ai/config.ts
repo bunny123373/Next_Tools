@@ -37,12 +37,14 @@ import "server-only";
 import {
   getAiConfig,
   getConfiguredProviderName,
+  isLocalEndpoint,
   type ProviderConfig,
 } from "./provider";
 
 export type { ProviderConfig };
 /** Re-exported so callers can narrow on the same type the provider uses. */
 export type AiConfig = ProviderConfig;
+export { isLocalEndpoint };
 
 /** True when an AI provider is available. Never reveals the credential. */
 export function isAiConfigured(): boolean {
@@ -65,8 +67,6 @@ export interface AiPublicStatus {
    */
   localProvider: boolean;
 }
-
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal"]);
 
 export function getAiPublicStatus(): AiPublicStatus {
   const config = getAiConfig();
@@ -96,15 +96,6 @@ export function getAiPublicStatus(): AiPublicStatus {
     baseUrlHost,
     localProvider: isLocalEndpoint(config),
   };
-}
-
-function isLocalEndpoint(config: ProviderConfig): boolean {
-  try {
-    const { hostname } = new URL(config.baseUrl);
-    return LOCAL_HOSTS.has(hostname.toLowerCase());
-  } catch {
-    return false;
-  }
 }
 
 /** The env vars an operator needs, in copy-paste form. */

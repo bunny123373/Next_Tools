@@ -7,6 +7,7 @@ import { localTrending } from "@/lib/user/store";
 import { useFavorites, useLocalStats, useRecent } from "@/lib/user/hooks";
 import { ToolCard } from "@/components/tools/ToolCard";
 import { Button } from "@/components/ui/button";
+import { useMounted } from "@/lib/hooks";
 import { ToolEmptyState } from "@/components/tools/states";
 import { Section } from "./Sections";
 
@@ -28,17 +29,24 @@ interface InstallPromptEvent extends Event {
 export function YourToolsRail() {
   const { ids: favoriteIds, count: favoriteCount } = useFavorites();
   const { recent } = useRecent();
-  const stats = useLocalStats();
+  // Favourites and usage live in localStorage, so the server cannot know them.
+  // Rendering the real values on the first client pass would disagree with the
+  // server HTML, so the server-safe state renders first and this fills in after.
+  const mounted = useMounted();
 
-  // Trending is derived from this browser's counters, so it only appears once
-  // there is enough signal. Re-evaluated whenever the list length changes.
-  const trendingIds = React.useMemo(
-    () => (stats.totalOpens >= 3 ? localTrending(4) : []),
-    [stats.totalOpens, recent.length],
-  );
-
-  const trendingTools = trendingIds.map(getTool).filter((tool) => tool !== undefined);
+  // Trending is TrendingRail's concern; this section is about recents and
+  // favourites only.
   const hasAnything = favoriteCount > 0 || recent.length > 0;
+
+  if (!mounted) {
+    // The same shape the empty state produces, so the first client render is
+    // identical to the server's and React has nothing to reconcile.
+    return (
+      <Section eyebrow="Yours" title="Pick up where you left off" className="min-h-[13rem]">
+        <div className="h-32 animate-pulse rounded-[14px] border border-[var(--surface-line)] bg-[var(--surface-card)]" />
+      </Section>
+    );
+  }
 
   if (!hasAnything) {
     return (
@@ -111,10 +119,12 @@ export function YourToolsRail() {
 export function TrendingRail() {
   const { recent } = useRecent();
   const stats = useLocalStats();
+  const mounted = useMounted();
 
+  // Ranking needs a real usage signal, so it is browser-only and mount-gated.
   const trendingIds = React.useMemo(
-    () => (stats.totalOpens >= 3 ? localTrending(6) : []),
-    [stats.totalOpens, recent.length],
+    () => (mounted && stats.totalOpens >= 3 ? localTrending(6) : []),
+    [mounted, stats.totalOpens, recent.length],
   );
   const tools = trendingIds.map(getTool).filter((tool) => tool !== undefined);
 

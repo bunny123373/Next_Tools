@@ -9,13 +9,7 @@ import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";
 import { Notice, ToolEmptyState } from "@/components/tools/states";
 import { toast } from "@/lib/utils/toast";
 import { formatNumber } from "@/lib/utils/format";
-import {
-  MAX_UUIDS,
-  generateUuids,
-  uuidsToCsv,
-  type UuidOptions,
-  type UuidVersion,
-} from "@/lib/tools/engines/dev";
+import { MAX_UUIDS, generateUuids, uuidsToCsv, type UuidVersion } from "@/lib/tools/engines/dev";
 
 const COUNTS = ["1", "5", "10", "25", "50", "100", "250", "500", "1000"];
 
@@ -28,8 +22,14 @@ export default function UuidGeneratorWorkspace() {
   const [seed, setSeed] = React.useState(0);
   const [cleared, setCleared] = React.useState(false);
 
+  /**
+   * `seed` is not read here, but it is in the dependency list on purpose: it is
+   * what makes Generate produce a *different* batch. Every other change to the
+   * options re-derives immediately, with no effect and no extra render.
+   */
   const uuids = React.useMemo(
     () => (cleared ? [] : generateUuids(count, { version, uppercase, hyphens })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [count, version, uppercase, hyphens, seed, cleared],
   );
 
@@ -58,7 +58,7 @@ export default function UuidGeneratorWorkspace() {
       >
         <div className="grid gap-3 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-3 sm:grid-cols-3">
           <Field label="How many" hint={`Between 1 and ${MAX_UUIDS.toLocaleString("en")}.`}>
-            {() => (
+            {({ id, describedBy }) => (
               <Select
                 id={id}
                 aria-describedby={describedBy}

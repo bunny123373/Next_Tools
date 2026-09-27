@@ -251,7 +251,12 @@ function DataUriPreview({ dataUri, mime }: { dataUri: string; mime: string }) {
 
   return (
     <figure className="flex flex-col gap-2 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-3">
-      {/* Decoded user data, not remote content. eslint-disable-next-line @next/next/no-img-element -- a blob: URL of bytes already in the page; next/image would add nothing and cannot take a data: source here. */}
+      {/*
+        A blob: URL of bytes that were already in the page, decoded in this tab.
+        next/image adds an optimisation layer that has nothing to do for a local
+        blob and cannot take one, so a plain <img> is the correct element here.
+      */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={url}
         alt="The image these Base64 bytes decoded to"

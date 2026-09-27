@@ -63,17 +63,22 @@ export default function Mp3ConverterWorkspace() {
     maxFiles: MAX_FILES,
   });
 
-  const [tracks, setTracks] = React.useState<TrackInfo[]>([]);
+  const [decoded, setDecoded] = React.useState<{ key: string; tracks: TrackInfo[] }>({
+    key: "",
+    tracks: [],
+  });
   const [kbps, setKbps] = React.useState<Mp3Bitrate>(192);
   const [mono, setMono] = React.useState(false);
 
-  // Decode every selected file up front so the estimates are real numbers.
+  // Decode every selected file up front so the estimates are real numbers. The
+  // result is tagged with the queue, so an empty or changed list invalidates it
+  // by comparison rather than by resetting state from an effect.
+  const queueKey = files.map((file) => `${file.name}:${file.size}:${file.lastModified}`).join("|");
+  const tracks = decoded.key === queueKey ? decoded.tracks : [];
+
   React.useEffect(() => {
+    if (files.length === 0) return;
     let alive = true;
-    if (files.length === 0) {
-      setTracks([]);
-      return;
-    }
     void Promise.all(
       files.map(async (file): Promise<TrackInfo> => {
         try {
@@ -100,12 +105,12 @@ export default function Mp3ConverterWorkspace() {
         }
       }),
     ).then((value) => {
-      if (alive) setTracks(value);
+      if (alive) setDecoded({ key: queueKey, tracks: value });
     });
     return () => {
       alive = false;
     };
-  }, [files]);
+  }, [files, queueKey]);
 
   const totalDuration = tracks.reduce((sum, track) => sum + track.duration, 0);
   const estimate = totalDuration > 0 ? estimateMp3Bytes(kbps, totalDuration) : 0;
@@ -254,20 +259,17 @@ export default function Mp3ConverterWorkspace() {
 
               <Field
                 label="MP3 bitrate"
-                hint="128 kbps suits speech; 192 kbps suits most music; 320 kbps only helps sources that were already lossy at a high rate."
+                hint={`${kbps} kbps: ${
+                  kbps <= 128 ? "speech-optimised" : kbps <= 192 ? "a good general default" : "high quality, diminishing returns"
+                }. 128 suits speech, 192 suits most music, and 320 only helps sources that were already lossy at a high rate.`}
               >
-                {({ id, describedBy }) => (
-                  <div className="flex flex-col gap-2">
-                    <Segmented
-                      label="MP3 bitrate"
-                      value={String(kbps)}
-                      onChange={(value) => setKbps(Number(value) as Mp3Bitrate)}
-                      options={MP3_BITRATES.map((rate) => ({ value: String(rate), label: `${rate}` }))}
-                    />
-                    <p className="text-xs text-[var(--text-muted)]" id={describedBy}>
-                      {kbps} kbps, {kbps <= 128 ? "speech-optimised" : kbps <= 192 ? "a good general default" : "high quality, diminishing returns"}
-                    </p>
-                  </div>
+                {() => (
+                  <Segmented
+                    label="MP3 bitrate"
+                    value={String(kbps)}
+                    onChange={(value) => setKbps(Number(value) as Mp3Bitrate)}
+                    options={MP3_BITRATES.map((rate) => ({ value: String(rate), label: `${rate}` }))}
+                  />
                 )}
               </Field>
 

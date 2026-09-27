@@ -225,7 +225,7 @@ export default function ApiTesterWorkspace() {
       clearTimeout(timer);
       setSending(false);
     }
-  }, [method, fullUrl, effectiveHeaders, requestBody, timeout, followRedirects, jsonError]);
+  }, [method, bodyMode, fullUrl, effectiveHeaders, requestBody, timeout, followRedirects, jsonError]);
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -239,7 +239,6 @@ export default function ApiTesterWorkspace() {
     () => buildFetch(method, fullUrl, effectiveHeaders, requestBody),
     [method, fullUrl, effectiveHeaders, requestBody],
   );
-  const responseText = response ? `HTTP ${response.status} ${response.statusText}\n\n${response.body}` : "";
 
   return (
     <ToolShell>

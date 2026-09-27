@@ -56,3 +56,11 @@ yarn-error.log*
 .dev.log
 .next/
 *.local.log
+
+# Compiled JS emitted next to TS sources by ad-hoc transpile runs
+lib/**/*.js
+!lib/**/*.d.ts
+
+# Tooling output
+.lint.json
+.tsc-errors.txt

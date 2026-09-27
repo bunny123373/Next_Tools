@@ -13,7 +13,7 @@ import {
   type TransformResult,
 } from "@/components/tools/workspaces/shared/FileStage";
 import { AudioPreview } from "@/components/tools/FilePreview";
-import { DownloadButton, DownloadGroup, OpenButton } from "@/components/tools/DownloadButton";
+import { DownloadButton, OpenButton } from "@/components/tools/DownloadButton";
 import { Notice } from "@/components/tools/states";
 import { Button } from "@/components/ui/button";
 import { Field, Segmented, Slider, Stat } from "@/components/ui/form";
@@ -80,48 +80,49 @@ export default function AudioMergerWorkspace() {
     multiple: true,
     maxFiles: MAX_FILES,
   });
-  // `useFiles` validates and owns the queue, but it exposes no wholesale
-  // replace, which arrow-button reordering needs. So the *display* and export
-  // order is a local list of the same File objects, seeded from the hook.
-  const [files, setFiles] = React.useState<File[]>([]);
-
-  React.useEffect(() => {
-    setFiles(added);
-  }, [added]);
+  // `useFiles` validates and owns the queue but exposes no wholesale replace,
+  // which arrow-button reordering needs. So the export order is local state,
+  // seeded from the hook; a new selection replaces it, a reorder does not.
+  const [order, setOrder] = React.useState<File[]>([]);
+  const orderMatchesQueue = order.length === added.length && order.every((file, i) => file === added[i]);
+  const files = orderMatchesQueue ? order : added;
 
   const remove = React.useCallback(
     (index: number) => {
+      setOrder((current) => current.filter((_, i) => i !== index));
       removeAdded(index);
     },
     [removeAdded],
   );
 
   const clear = React.useCallback(() => {
+    setOrder([]);
     clearAdded();
   }, [clearAdded]);
 
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
 
-  const [tracks, setTracks] = React.useState<TrackInfo[]>([]);
+  const [decoded, setDecoded] = React.useState<{ key: string; tracks: TrackInfo[] }>({ key: "", tracks: [] });
   const [gap, setGap] = React.useState(0.5);
   const [settings, setSettings] = React.useState<Record<string, TrackSettings>>({});
   const [format, setFormat] = React.useState<OutputFormat>("wav");
   const [bitDepth, setBitDepth] = React.useState<WavBitDepth>(16);
   const [kbps, setKbps] = React.useState<Mp3Bitrate>(192);
 
+  // Decoded facts are keyed by the ordered queue, so a reorder re-measures in
+  // exactly the order the export will use.
+  const orderKey = files.map((file) => file.name + ":" + file.size + ":" + file.lastModified).join("|");
+  const tracks = decoded.key === orderKey ? decoded.tracks : [];
+
   // Keyed by index because two files can share a name.
-  const settingsFor = (index: number): TrackSettings =>
-    settings[index] ?? { gainDb: 0, fadeMs: 20 };
+  const settingsFor = (index: number): TrackSettings => settings[index] ?? { gainDb: 0, fadeMs: 20 };
   const updateSetting = (index: number, patch: Partial<TrackSettings>) => {
     setSettings((current) => ({ ...current, [index]: { ...settingsFor(index), ...patch } }));
   };
 
   React.useEffect(() => {
+    if (files.length === 0) return;
     let alive = true;
-    if (files.length === 0) {
-      setTracks([]);
-      return;
-    }
     void Promise.all(
       files.map(async (file): Promise<TrackInfo> => {
         try {
@@ -138,12 +139,12 @@ export default function AudioMergerWorkspace() {
         }
       }),
     ).then((value) => {
-      if (alive) setTracks(value);
+      if (alive) setDecoded({ key: orderKey, tracks: value });
     });
     return () => {
       alive = false;
     };
-  }, [files]);
+  }, [files, orderKey]);
 
   const move = React.useCallback(
     (from: number, to: number) => {
@@ -152,7 +153,7 @@ export default function AudioMergerWorkspace() {
       const [item] = next.splice(from, 1);
       if (!item) return;
       next.splice(to, 0, item);
-      setFiles(next);
+      setOrder(next);
     },
     [files],
   );
@@ -449,7 +450,7 @@ export default function AudioMergerWorkspace() {
 
               {format === "mp3" ? (
                 <Field label="MP3 bitrate" hint="MP3 only supports 44.1 and 48 kHz; anything else is resampled.">
-                  {({ id }) => (
+                  {() => (
                     <Segmented
                       label="MP3 bitrate"
                       size="sm"
@@ -461,7 +462,7 @@ export default function AudioMergerWorkspace() {
                 </Field>
               ) : (
                 <Field label="WAV bit depth" hint="16-bit matches CD; 24-bit leaves headroom for further processing.">
-                  {({ id }) => (
+                  {() => (
                     <Segmented
                       label="WAV bit depth"
                       size="sm"

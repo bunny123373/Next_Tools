@@ -72,22 +72,26 @@ export default function WavConverterWorkspace() {
     maxFiles: MAX_FILES,
   });
 
-  const [tracks, setTracks] = React.useState<TrackInfo[]>([]);
+  const [decoded, setDecoded] = React.useState<{ key: string; tracks: TrackInfo[] }>({
+    key: "",
+    tracks: [],
+  });
   const [bitDepth, setBitDepth] = React.useState<WavBitDepth>(16);
   const [sampleRate, setSampleRate] = React.useState(44100);
   const [mono, setMono] = React.useState(false);
 
+  // Tagged with the queue, so an empty or changed list invalidates the previous
+  // decode by comparison rather than by resetting state from an effect.
+  const queueKey = files.map((file) => file.name + ":" + file.size + ":" + file.lastModified).join("|");
+  const tracks = decoded.key === queueKey ? decoded.tracks : [];
+
   React.useEffect(() => {
+    if (files.length === 0) return;
     let alive = true;
-    if (files.length === 0) {
-      setTracks([]);
-      return;
-    }
     void Promise.all(
       files.map(async (file): Promise<TrackInfo> => {
         try {
-          const buffer = await decodeAudio(file);
-          const analysis: AudioAnalysis = analyseAudio(buffer);
+          const analysis: AudioAnalysis = analyseAudio(await decodeAudio(file));
           return {
             name: file.name,
             duration: analysis.duration,
@@ -96,16 +100,16 @@ export default function WavConverterWorkspace() {
             ok: analysis.duration > 0,
           };
         } catch {
-          return { name: file.name, duration: 0, channels: 0, sampleRate: 0, ok: false };
+          return { name: file.name, duration: 0, sampleRate: 0, channels: 0, ok: false };
         }
       }),
     ).then((value) => {
-      if (alive) setTracks(value);
+      if (alive) setDecoded({ key: queueKey, tracks: value });
     });
     return () => {
       alive = false;
     };
-  }, [files]);
+  }, [files, queueKey]);
 
   const totalDuration = tracks.reduce((sum, track) => sum + track.duration, 0);
   const ready = tracks.filter((track) => track.ok);

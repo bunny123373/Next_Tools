@@ -102,7 +102,7 @@ export function AudioPreview({
           </p>
         </div>
       </div>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-supplied audio, no captions apply */}
+      { }
       <audio controls src={src} className="w-full">
         <track kind="captions" />
       </audio>
@@ -127,7 +127,7 @@ export function VideoPreview({
   const name = file instanceof File ? file.name : "video";
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- user-supplied video, no captions apply */}
+      { }
       <video
         controls={controls}
         playsInline

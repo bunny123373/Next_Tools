@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AudioWaveform, Info, TriangleAlert } from "lucide-react";
+import { AudioWaveform, TriangleAlert } from "lucide-react";
 import { ToolShell, PrivacyNote } from "@/components/tools/ToolShell";
 import {
   FileStage,
@@ -75,9 +75,11 @@ export default function RemoveSilenceWorkspace() {
     maxFiles: MAX_FILES,
   });
 
-  const [tracks, setTracks] = React.useState<TrackInfo[]>([]);
-  const [plan, setPlan] = React.useState<SilencePlan | null>(null);
-
+  const [decoded, setDecoded] = React.useState<{
+    key: string;
+    tracks: TrackInfo[];
+    plan: SilencePlan | null;
+  }>({ key: '', tracks: [], plan: null });
   const [thresholdDb, setThresholdDb] = React.useState(-45);
   const [minSilence, setMinSilence] = React.useState(0.5);
   const [padding, setPadding] = React.useState(0.05);
@@ -86,49 +88,55 @@ export default function RemoveSilenceWorkspace() {
   const [bitDepth, setBitDepth] = React.useState<WavBitDepth>(16);
   const [kbps, setKbps] = React.useState<Mp3Bitrate>(192);
 
-  const single = files.length === 1;
-  const source = files[0] ?? null;
+  // The silence plan is analysis, so it is keyed by the file *and* the
+  // detection settings. Changing either invalidates it by comparison
+  // rather than by writing state back from an effect.
+  const analysisKey =
+    files.map((file) => file.name + ":" + file.size + ":" + file.lastModified).join("|") +
+    "|" + thresholdDb + "|" + minSilence + "|" + padding;
+  const isDecoded = decoded.key === analysisKey;
+  const tracks = isDecoded ? decoded.tracks : [];
+  const plan = isDecoded ? decoded.plan : null;
 
-  // Analyse every file: the durations are needed for the batch case, and the
-  // first file's silence plan drives the list.
   React.useEffect(() => {
+    if (files.length === 0) return;
     let alive = true;
-    if (files.length === 0) {
-      setTracks([]);
-      setPlan(null);
-      return;
-    }
-    void Promise.all(
-      files.map(async (file, index): Promise<TrackInfo> => {
+    void (async () => {
+      const first = files[0];
+      let planForFirst: SilencePlan | null = null;
+      if (first) {
         try {
-          const analysis: AudioAnalysis = analyseAudio(await decodeAudio(file));
-          if (index === 0 && alive) {
-            setPlan(
-              planSilenceRemoval(await decodeAudio(file), {
-                thresholdDb,
-                minSilence,
-                padding,
-              }),
-            );
-          }
-          return {
-            name: file.name,
-            duration: analysis.duration,
-            sampleRate: analysis.sampleRate,
-            channels: analysis.channels,
-            ok: analysis.duration > 0,
-          };
+          planForFirst = planSilenceRemoval(await decodeAudio(first), {
+            thresholdDb,
+            minSilence,
+            padding,
+          });
         } catch {
-          return { name: file.name, duration: 0, sampleRate: 0, channels: 0, ok: false };
+          planForFirst = null;
         }
-      }),
-    ).then((value) => {
-      if (alive) setTracks(value);
-    });
+      }
+      const measured = await Promise.all(
+        files.map(async (file): Promise<TrackInfo> => {
+          try {
+            const analysis: AudioAnalysis = analyseAudio(await decodeAudio(file));
+            return {
+              name: file.name,
+              duration: analysis.duration,
+              sampleRate: analysis.sampleRate,
+              channels: analysis.channels,
+              ok: analysis.duration > 0,
+            };
+          } catch {
+            return { name: file.name, duration: 0, sampleRate: 0, channels: 0, ok: false };
+          }
+        }),
+      );
+      if (alive) setDecoded({ key: analysisKey, tracks: measured, plan: planForFirst });
+    })();
     return () => {
       alive = false;
     };
-  }, [files, thresholdDb, minSilence, padding]);
+  }, [files, analysisKey, thresholdDb, minSilence, padding]);
 
   const totalDuration = tracks.reduce((sum, track) => sum + track.duration, 0);
   const keptDuration = plan?.keptSeconds ?? totalDuration;
@@ -265,7 +273,7 @@ export default function RemoveSilenceWorkspace() {
   }, [stage, error, files]);
 
   const handleReset = () => {
-    setPlan(null);
+    setDecoded({ key: "", tracks: [], plan: null });
     clear();
     reset();
   };

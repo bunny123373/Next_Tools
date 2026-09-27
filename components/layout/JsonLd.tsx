@@ -14,7 +14,7 @@ export function JsonLd({ data }: { data: unknown }) {
   return (
     <script
       type="application/ld+json"
-      // eslint-disable-next-line react/no-danger -- JSON-LD requires raw text; the payload is escaped above.
+       
       dangerouslySetInnerHTML={{ __html: json }}
     />
   );

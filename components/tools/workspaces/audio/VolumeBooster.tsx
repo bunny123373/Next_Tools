@@ -93,7 +93,11 @@ export default function VolumeBoosterWorkspace() {
     maxFiles: MAX_FILES,
   });
 
-  const [tracks, setTracks] = React.useState<TrackInfo[]>([]);
+  const queueKey = files.map((file) => file.name + ":" + file.size + ":" + file.lastModified).join("|");
+  const [decoded, setDecoded] = React.useState<{ key: string; tracks: TrackInfo[] }>({
+    key: "",
+    tracks: [],
+  });
   const [unit, setUnit] = React.useState<Unit>("db");
   const [gainDb, setGainDb] = React.useState(6);
   const [gainPercent, setGainPercent] = React.useState(200);
@@ -102,12 +106,13 @@ export default function VolumeBoosterWorkspace() {
   const [bitDepth, setBitDepth] = React.useState<WavBitDepth>(16);
   const [kbps, setKbps] = React.useState<Mp3Bitrate>(192);
 
+  // Tagged with the queue, so an empty or changed list invalidates the previous
+  // decode by comparison rather than by resetting state from an effect.
+  const tracks = decoded.key === queueKey ? decoded.tracks : [];
+
   React.useEffect(() => {
+    if (files.length === 0) return;
     let alive = true;
-    if (files.length === 0) {
-      setTracks([]);
-      return;
-    }
     void Promise.all(
       files.map(async (file): Promise<TrackInfo> => {
         try {
@@ -138,12 +143,12 @@ export default function VolumeBoosterWorkspace() {
         }
       }),
     ).then((value) => {
-      if (alive) setTracks(value);
+      if (alive) setDecoded({ key: queueKey, tracks: value });
     });
     return () => {
       alive = false;
     };
-  }, [files]);
+  }, [files, queueKey]);
 
   const options = React.useMemo<Options>(
     () => ({ unit, gainDb, gainPercent, limiter, format, bitDepth, kbps }),
@@ -424,6 +429,20 @@ export default function VolumeBoosterWorkspace() {
                   tanh shoulder. No sample can come out beyond +/-1.
                 </Notice>
               ) : null}
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-[13px] text-[var(--text-ink)]">Soft limiter</span>
+                <Segmented
+                  label="Soft limiter"
+                  size="sm"
+                  value={limiter ? "on" : "off"}
+                  onChange={(value) => setLimiter(value === "on")}
+                  options={[
+                    { value: "on", label: "On" },
+                    { value: "off", label: "Off" },
+                  ]}
+                />
+              </div>
 
               <Field label="Output format" hint="WAV keeps the boosted result bit-exact; MP3 is smaller and lossy.">
                 {() => (

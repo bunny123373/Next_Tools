@@ -176,14 +176,38 @@ export function getConfiguredProviderName(): string {
   return env("AI_PROVIDER") ?? "openai-compatible";
 }
 
+/** Hosts where a missing credential is legitimate rather than a mistake. */
+const LOCAL_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "0.0.0.0",
+  "host.docker.internal",
+]);
+
+/** True when the endpoint is self-hosted (Ollama, LM Studio, vLLM). */
+export function isLocalEndpoint(config: ProviderConfig): boolean {
+  try {
+    const { hostname } = new URL(config.baseUrl);
+    return LOCAL_HOSTS.has(hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /**
- * True when a chat request can be served. A missing key is *not* fatal — a
- * local provider legitimately has none — so this checks that a base URL and a
- * model both exist.
+ * True when a chat request can actually be served.
+ *
+ * A missing key is fine for a *local* provider, which legitimately has none.
+ * Against a hosted provider it is a misconfiguration, and treating it as
+ * configured would render a working-looking tool that 401s on the first click
+ * — so a remote host with no key reports as not configured here.
  */
 export function isAiConfigured(): boolean {
   const config = getAiConfig();
-  return Boolean(config.baseUrl && config.model);
+  if (!config.baseUrl || !config.model) return false;
+  if (config.apiKey) return true;
+  return isLocalEndpoint(config);
 }
 
 /** Human-readable label for a provider id, used by the status route. */
@@ -624,6 +648,76 @@ function readChatText(payload: Record<string, unknown>): string {
 }
 
 /** Reads the first image from an OpenAI-compatible image response. */
+/**
+ * Downloads an image the provider itself pointed us at and returns it inline.
+ *
+ * The URL is **never** accepted from a caller. It is read out of a response
+ * from the provider we just authenticated to, which is what keeps this from
+ * becoming an open proxy: a client cannot choose what we fetch. Guards:
+ *
+ *   - https only
+ *   - the host must share a registrable suffix with the provider's base URL,
+ *     so a compromised response pointing at `evil.example` is refused
+ *   - content-type must be an image
+ *   - hard byte ceiling, enforced on the real body length
+ */
+async function inlineProviderImage(
+  config: ProviderConfig,
+  url: string,
+  model: string,
+  signal?: AbortSignal,
+): Promise<AiImageResult> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new AiError("upstream", { detail: "the provider returned an unparseable image URL" });
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new AiError("upstream", { detail: "the provider returned a non-https image URL" });
+  }
+
+  // Require the image host to be related to the provider host. `cdn.xkiro.com`
+  // passes for `api.xkiro.com`; `evil.com` does not.
+  const providerHost = new URL(config.baseUrl).hostname;
+  const registrable = (host: string) => host.split(".").slice(-2).join(".");
+  if (registrable(parsed.hostname) !== registrable(providerHost)) {
+    throw new AiError("upstream", {
+      detail: "the provider returned an image URL on an unrelated host; refused",
+    });
+  }
+
+  const response = await fetch(parsed.toString(), {
+    ...(signal ? { signal } : {}),
+    redirect: "error",
+  });
+  if (!response.ok) {
+    throw new AiError("upstream", { detail: `image download returned ${response.status}` });
+  }
+
+  const contentType = (response.headers.get("content-type") ?? "").split(";")[0]?.trim() ?? "";
+  if (!contentType.startsWith("image/")) {
+    throw new AiError("upstream", { detail: `image URL returned ${contentType || "no content type"}` });
+  }
+
+  const MAX_IMAGE_BYTES = 24 * 1024 * 1024;
+  const buffer = new Uint8Array(await response.arrayBuffer());
+  if (buffer.byteLength === 0) {
+    throw new AiError("upstream", { detail: "image URL returned an empty body" });
+  }
+  if (buffer.byteLength > MAX_IMAGE_BYTES) {
+    throw new AiError("upstream", { detail: "image exceeded the 24 MB ceiling" });
+  }
+
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < buffer.length; i += CHUNK) {
+    binary += String.fromCharCode(...buffer.subarray(i, i + CHUNK));
+  }
+  return { mime: contentType, base64: btoa(binary), model };
+}
+
 function readImage(payload: Record<string, unknown>, model: string): AiImageResult {
   const first = Array.isArray(payload.data) ? payload.data[0] : undefined;
   if (typeof first !== "object" || first === null) {
@@ -719,11 +813,18 @@ class OpenAiCompatibleProvider implements AiProvider {
 
   async generateImage(request: AiImageRequest): Promise<AiImageResult> {
     const model = this.requireImageModel(request.model);
+    // `response_format` is deliberately NOT sent.
+    //
+    // OpenAI accepts "b64_json". xkiro rejects that value outright:
+    //   'Only response_format "url" is supported - images are served from the CDN.'
+    // Other gateways vary again. Both shapes are handled downstream —
+    // `readImage` for inline bytes, `pollImageJob` + `inlineProviderImage` for a
+    // CDN URL — so omitting the field works everywhere rather than hardcoding
+    // one vendor's dialect.
     const payload: Record<string, unknown> = {
       model,
       prompt: request.prompt,
       n: 1,
-      response_format: "b64_json",
     };
     if (request.size) payload.size = request.size;
 
@@ -735,7 +836,78 @@ class OpenAiCompatibleProvider implements AiProvider {
       ...(request.signal ? { signal: request.signal } : {}),
     });
 
-    return readImage(response.payload, model);
+    // Some gateways answer synchronously (OpenAI) with inline data.
+    if (Array.isArray(response.payload.data)) {
+      return readImage(response.payload, model);
+    }
+
+    // Others queue the work: HTTP 202 with a job id, polled until it settles.
+    // xkiro is one of them, and says so in its own error text:
+    //   "use POST /v1/images/generations (asynchronous - it returns a job id;
+    //    poll GET /v1/images/generations/:id for the image)"
+    return this.pollImageJob(response.payload, model, request.signal);
+  }
+
+  /**
+   * Polls an asynchronous image job to completion, then inlines the result.
+   *
+   * The finished image lives on the provider's CDN, so it is downloaded here
+   * rather than handed to the browser as a bare URL: that keeps the API
+   * response shape identical to a synchronous provider, and it avoids leaking a
+   * CDN path to the client. `inlineProviderImage` requires the host to be
+   * related to the provider's own host, so this is not an open proxy.
+   */
+  private async pollImageJob(
+    submitted: Record<string, unknown>,
+    model: string,
+    signal?: AbortSignal,
+  ): Promise<AiImageResult> {
+    const jobId = asString(submitted.id);
+    if (!jobId) {
+      throw new AiError("upstream", { detail: "provider accepted the job but returned no id" });
+    }
+
+    const deadline = Date.now() + this.config.timeoutMs;
+    const pollEveryMs = 2000;
+
+    while (Date.now() < deadline) {
+      if (signal?.aborted) {
+        throw new AiError("upstream", { detail: "image generation was cancelled" });
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollEveryMs));
+
+      const job = await providerFetch(this.config, {
+        method: "GET",
+        path: `/images/generations/${encodeURIComponent(jobId)}`,
+        timeoutMs: 20_000,
+        ...(signal ? { signal } : {}),
+      });
+
+      const status = asString(job.payload.status) ?? "processing";
+
+      if (status === "succeeded" || status === "completed" || status === "success") {
+        const first = Array.isArray(job.payload.data) ? job.payload.data[0] : undefined;
+        const url =
+          typeof first === "object" && first !== null
+            ? asString((first as Record<string, unknown>).url)
+            : undefined;
+        if (url) return inlineProviderImage(this.config, url, model, signal);
+        // Some gateways inline the bytes in the job result.
+        if (first) return readImage(job.payload, model);
+        throw new AiError("upstream", { detail: "image job succeeded with no payload" });
+      }
+
+      if (status === "failed" || status === "cancelled" || status === "canceled") {
+        const reason =
+          asString((job.payload.error as Record<string, unknown> | undefined)?.message) ??
+          `image job ${status}`;
+        throw new AiError("upstream", { detail: reason });
+      }
+    }
+
+    throw new AiError("timeout", {
+      detail: `image job ${jobId} did not finish within ${this.config.timeoutMs}ms`,
+    });
   }
 
   async editImage(request: AiImageEditRequest): Promise<AiImageResult> {

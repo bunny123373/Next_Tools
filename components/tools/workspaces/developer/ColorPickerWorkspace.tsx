@@ -384,11 +384,13 @@ export default function ColorPickerWorkspace() {
               </Field>
 
               <Field label="HSL" hint="Hue 0–360°, saturation and lightness 0–100%.">
-                {({ id }) => (
-                  <div id={id} className="flex items-center gap-2">
-                    {(["h", "s", "l"] as const).map((key) => (
+                {({ id, describedBy }) => (
+                  <div className="flex items-center gap-2">
+                    {(["h", "s", "l"] as const).map((key, index) => (
                       <React.Fragment key={key}>
                         <input
+                          id={index === 0 ? id : undefined}
+                          aria-describedby={index === 0 ? describedBy : undefined}
                           value={hslDraft[key]}
                           onChange={(event) => {
                             const next = { ...hslDraft, [key]: event.target.value };
@@ -409,11 +411,13 @@ export default function ColorPickerWorkspace() {
               </Field>
 
               <Field label="HSV / HSB" hint="Value is what designers mean by brightness.">
-                {({ id }) => (
-                  <div id={id} className="flex items-center gap-2">
-                    {(["h", "s", "v"] as const).map((key) => (
+                {({ id, describedBy }) => (
+                  <div className="flex items-center gap-2">
+                    {(["h", "s", "v"] as const).map((key, index) => (
                       <React.Fragment key={key}>
                         <input
+                          id={index === 0 ? id : undefined}
+                          aria-describedby={index === 0 ? describedBy : undefined}
                           value={hsvDraft[key]}
                           onChange={(event) => {
                             const next = { ...hsvDraft, [key]: event.target.value };
@@ -437,11 +441,13 @@ export default function ColorPickerWorkspace() {
               </Field>
 
               <Field label="CMYK" hint="Printing convention, 0–100% each. Rounding is why it will not look perfectly exact.">
-                {({ id }) => (
-                  <div id={id} className="flex items-center gap-2">
-                    {(["c", "m", "y", "k"] as const).map((key) => (
+                {({ id, describedBy }) => (
+                  <div className="flex items-center gap-2">
+                    {(["c", "m", "y", "k"] as const).map((key, index) => (
                       <React.Fragment key={key}>
                         <input
+                          id={index === 0 ? id : undefined}
+                          aria-describedby={index === 0 ? describedBy : undefined}
                           value={cmykDraft[key]}
                           onChange={(event) => {
                             const next = { ...cmykDraft, [key]: event.target.value };
@@ -462,11 +468,13 @@ export default function ColorPickerWorkspace() {
               </Field>
 
               <Field label="OKLCH" hint="Perceptually uniform, so equal numeric steps look like equal steps.">
-                {({ id }) => (
-                  <div id={id} className="flex items-center gap-2">
-                    {(["l", "c", "h"] as const).map((key) => (
+                {({ id, describedBy }) => (
+                  <div className="flex items-center gap-2">
+                    {(["l", "c", "h"] as const).map((key, index) => (
                       <React.Fragment key={key}>
                         <input
+                          id={index === 0 ? id : undefined}
+                          aria-describedby={index === 0 ? describedBy : undefined}
                           value={oklchDraft[key]}
                           onChange={(event) => {
                             const next = { ...oklchDraft, [key]: event.target.value };

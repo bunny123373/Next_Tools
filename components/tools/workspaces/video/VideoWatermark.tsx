@@ -98,8 +98,16 @@ export default function VideoWatermarkWorkspace() {
   const sourceUrl = useObjectUrl(source);
 
   const [support, setSupport] = React.useState<MediaSupport | null>(null);
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [probeError, setProbeError] = React.useState<string | null>(null);
+  // Probe results are tagged with the file they describe, so changing the file
+  // invalidates them by derivation rather than by resetting state in an effect.
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const probeError = probe.key === probeKey ? probe.error : null;
 
   const [kind, setKind] = React.useState<"text" | "image">("text");
   const [text, setText] = React.useState("Balu Tools");
@@ -113,7 +121,11 @@ export default function VideoWatermarkWorkspace() {
   const [tiled, setTiled] = React.useState(false);
   const [logo, setLogo] = React.useState<File | null>(null);
   const [logoError, setLogoError] = React.useState<string | null>(null);
-  const [logoBitmap, setLogoBitmap] = React.useState<ImageBitmap | null>(null);
+  const [logoState, setLogoState] = React.useState<{ file: File | null; bitmap: ImageBitmap | null }>({
+    file: null,
+    bitmap: null,
+  });
+  const logoBitmap = logoState.file === logo ? logoState.bitmap : null;
   const logoInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const [formatId, setFormatId] = React.useState("webm-vp9");
@@ -135,33 +147,36 @@ export default function VideoWatermarkWorkspace() {
   }, []);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setProbeError(null);
     if (!source) return;
+    let alive = true;
     void probeVideo(source)
-      .then((probe) => {
-        probe.dispose();
-        if (alive) setMeta(probe.meta);
+      .then((result) => {
+        result.dispose();
+        if (alive) setProbe({ key: probeKey, meta: result.meta, error: null });
       })
       .catch((error: unknown) => {
-        if (alive) setProbeError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
 
-  // Decode the logo once; bitmaps are cheap to reuse across every frame.
+  // Decode the logo once; bitmaps are cheap to reuse across every frame. A
+  // replacement file supersedes the previous bitmap by identity, so no reset
+  // pass through an effect is needed.
   React.useEffect(() => {
+    if (!logo) return;
     let alive = true;
-    if (!logo) {
-      setLogoBitmap(null);
-      return;
-    }
     void createImageBitmap(logo)
       .then((bitmap) => {
-        if (alive) setLogoBitmap(bitmap);
+        if (alive) setLogoState({ file: logo, bitmap });
         else bitmap.close();
       })
       .catch(() => {
@@ -174,9 +189,9 @@ export default function VideoWatermarkWorkspace() {
 
   React.useEffect(
     () => () => {
-      logoBitmap?.close();
+      logoState.bitmap?.close();
     },
-    [logoBitmap],
+    [logoState.bitmap],
   );
 
   const picked = React.useMemo(
@@ -381,6 +396,7 @@ export default function VideoWatermarkWorkspace() {
     setCancelled(false);
     setNoAudio(false);
     setLogo(null);
+    setLogoState({ file: null, bitmap: null });
     setLogoError(null);
     clear();
     reset();
@@ -503,7 +519,7 @@ export default function VideoWatermarkWorkspace() {
                           variant="ghost"
                           onClick={() => {
                             setLogo(null);
-                            setLogoBitmap(null);
+                            setLogoState({ file: null, bitmap: null });
                           }}
                         >
                           Remove

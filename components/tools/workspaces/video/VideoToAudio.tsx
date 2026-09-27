@@ -61,9 +61,16 @@ export default function VideoToAudioWorkspace() {
   const source = files[0] ?? null;
   const sourceUrl = useObjectUrl(source);
 
-  const [analysis, setAnalysis] = React.useState<AudioAnalysis | null>(null);
-  const [probeError, setProbeError] = React.useState<string | null>(null);
-  const [probing, setProbing] = React.useState(false);
+  const [decoded, setDecoded] = React.useState<{
+    key: string;
+    analysis: AudioAnalysis | null;
+    error: string | null;
+  }>({ key: "", analysis: null, error: null });
+  const sourceKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const isDecoded = decoded.key === sourceKey;
+  const analysis = isDecoded ? decoded.analysis : null;
+  const probeError = isDecoded ? decoded.error : null;
+  const probing = Boolean(source) && !isDecoded;
 
   const [format, setFormat] = React.useState<OutputFormat>("mp3");
   const [bitDepth, setBitDepth] = React.useState<WavBitDepth>(16);
@@ -72,29 +79,31 @@ export default function VideoToAudioWorkspace() {
   const [mono, setMono] = React.useState(false);
 
   // Decode once, up front, so the real numbers are on screen before encoding.
+  // The result is tagged with the file, so a new file invalidates it by
+  // comparison rather than by resetting state from an effect.
   React.useEffect(() => {
-    let alive = true;
-    setAnalysis(null);
-    setProbeError(null);
     if (!source) return;
-    setProbing(true);
+    let alive = true;
     void decodeAudio(source)
       .then((buffer) => {
         if (!alive) return;
-        setAnalysis(analyseAudio(buffer));
+        setDecoded({ key: sourceKey, analysis: analyseAudio(buffer), error: null });
         setSampleRate(buffer.sampleRate === 44100 || buffer.sampleRate === 48000 ? buffer.sampleRate : 44100);
         setMono(buffer.numberOfChannels === 1);
       })
       .catch((error: unknown) => {
-        if (alive) setProbeError(error instanceof Error ? error.message : "This file has no decodable audio.");
-      })
-      .finally(() => {
-        if (alive) setProbing(false);
+        if (alive) {
+          setDecoded({
+            key: sourceKey,
+            analysis: null,
+            error: error instanceof Error ? error.message : "This file has no decodable audio.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, sourceKey]);
 
   const estimate = React.useMemo(() => {
     if (!analysis) return 0;
@@ -426,7 +435,7 @@ export default function VideoToAudioWorkspace() {
         ) : null}
 
         <Notice tone="info" icon={<TriangleAlert className="size-4" />}>
-          The browser's decoder decides what is readable. AAC and MP3 in MP4, and Opus and Vorbis in WebM, work everywhere.
+          The browser decoder decides what is readable. AAC and MP3 in MP4, and Opus and Vorbis in WebM, work everywhere.
           AC-3, DTS, TrueHD and ALAC usually do not, and you will get a clear message rather than an empty file.
         </Notice>
 

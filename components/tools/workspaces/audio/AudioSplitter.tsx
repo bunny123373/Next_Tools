@@ -16,7 +16,7 @@ import { DownloadGroup } from "@/components/tools/DownloadButton";
 import { Notice } from "@/components/tools/states";
 import { Button } from "@/components/ui/button";
 import { Checkbox, Field, Segmented, Select, Slider, Stat } from "@/components/ui/form";
-import { useFiles, useObjectUrl } from "@/lib/hooks";
+import { useFiles } from "@/lib/hooks";
 import { SITE } from "@/lib/site";
 import { formatBytes, formatDuration } from "@/lib/utils/format";
 import { baseName, withExtension } from "@/lib/utils/files";

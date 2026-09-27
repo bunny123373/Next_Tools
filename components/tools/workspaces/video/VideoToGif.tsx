@@ -80,13 +80,23 @@ export default function VideoToGifWorkspace() {
   const { files, add, remove, clear } = useFiles({ category: "video", maxBytes: SITE.limits.video });
   const source = files[0] ?? null;
 
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [thumbs, setThumbs] = React.useState<Thumbnail[]>([]);
-  const [probeError, setProbeError] = React.useState<string | null>(null);
-  const [probing, setProbing] = React.useState(false);
+  const [loaded, setLoaded] = React.useState<{
+    key: string;
+    meta: VideoMetaLite | null;
+    thumbs: Thumbnail[];
+    error: string | null;
+  }>({ key: "", meta: null, thumbs: [], error: null });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const isLoaded = loaded.key === probeKey;
+  const meta = isLoaded ? loaded.meta : null;
+  const thumbs = isLoaded ? loaded.thumbs : [];
+  const probeError = isLoaded ? loaded.error : null;
+  const probing = Boolean(source) && !isLoaded;
 
-  const [start, setStart] = React.useState(0);
-  const [end, setEnd] = React.useState(0);
+  const [selection, setSelection] = React.useState<{ key: string; start: number; end: number } | null>(null);
+  const start = selection?.key === probeKey ? selection.start : 0;
+  const end = selection?.key === probeKey ? selection.end : 0;
+
   const [fps, setFps] = React.useState(12);
   const [width, setWidth] = React.useState(480);
   const [loop, setLoop] = React.useState("forever");
@@ -98,46 +108,44 @@ export default function VideoToGifWorkspace() {
   const cancelRef = React.useRef(false);
 
   React.useEffect(() => {
+    if (!source) return;
     let alive = true;
     let dispose: (() => void) | null = null;
-    setMeta(null);
-    setThumbs([]);
-    setProbeError(null);
-    setStart(0);
-    setEnd(0);
-    if (!source) return;
-
-    setProbing(true);
     void probeVideo(source)
-      .then(async (probe) => {
+      .then(async (result) => {
         if (!alive) {
-          probe.dispose();
+          result.dispose();
           return;
         }
-        dispose = probe.dispose;
-        const duration = probe.meta.duration;
-        setMeta(probe.meta);
-        setStart(0);
-        setEnd(Math.min(duration, 5));
+        dispose = result.dispose;
+        const duration = result.meta.duration;
+        setLoaded({ key: probeKey, meta: result.meta, thumbs: [], error: null });
+        // A GIF is only usable over a short range, so default to the first
+        // five seconds rather than the whole file.
+        setSelection({ key: probeKey, start: 0, end: Math.min(duration, 5) });
         const step = duration / THUMBNAILS;
         const times = Array.from({ length: THUMBNAILS }, (_, index) =>
           Math.min(Math.max(0, duration - 0.02), index * step + step / 2),
         );
-        const captured = await captureThumbnails(probe.element, times, probe.meta.width);
-        if (alive) setThumbs(captured);
+        const captured = await captureThumbnails(result.element, times, result.meta.width);
+        if (alive) setLoaded({ key: probeKey, meta: result.meta, thumbs: captured, error: null });
       })
       .catch((error: unknown) => {
-        if (alive) setProbeError(error instanceof Error ? error.message : "This video could not be read.");
-      })
-      .finally(() => {
-        if (alive) setProbing(false);
+        if (alive) {
+          setLoaded({
+            key: probeKey,
+            meta: null,
+            thumbs: [],
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
 
     return () => {
       alive = false;
       dispose?.();
     };
-  }, [source]);
+  }, [source, probeKey]);
 
   const duration = meta?.duration ?? 0;
   const span = Math.max(0, end - start);
@@ -153,10 +161,9 @@ export default function VideoToGifWorkspace() {
       const low = Math.max(0, Math.min(nextStart, duration));
       const high = Math.max(0, Math.min(nextEnd, duration));
       if (high - low < 0.1) return;
-      setStart(low);
-      setEnd(high);
+      setSelection({ key: probeKey, start: low, end: high });
     },
-    [duration],
+    [duration, probeKey],
   );
 
   const options = React.useMemo<Options>(
@@ -203,7 +210,7 @@ export default function VideoToGifWorkspace() {
       let captured = 0;
       let skipped = 0;
       let hitCap = false;
-      let interval = 1000 / Math.max(1, current.fps);
+      const interval = 1000 / Math.max(1, current.fps);
 
       try {
         // ------------------------------------------------------------------
@@ -710,6 +717,8 @@ function RangeBar({
           {thumbs.map((thumb, index) => (
             <div key={`${thumb.time}-${index}`} className="h-full flex-1 overflow-hidden">
               {thumb.ok ? (
+                // Thumbnails are canvas data URLs; next/image cannot optimise them.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={thumb.src}
                   alt={`Frame at ${thumb.time.toFixed(2)} seconds`}

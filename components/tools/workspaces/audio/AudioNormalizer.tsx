@@ -31,7 +31,6 @@ import {
   encodeWav,
   estimateMp3Bytes,
   softClip,
-  toDb,
   type AudioAnalysis,
   type Mp3Bitrate,
   type WavBitDepth,
@@ -80,7 +79,11 @@ export default function AudioNormalizerWorkspace() {
     maxFiles: MAX_FILES,
   });
 
-  const [tracks, setTracks] = React.useState<TrackInfo[]>([]);
+  const queueKey = files.map((file) => file.name + ":" + file.size + ":" + file.lastModified).join("|");
+  const [decoded, setDecoded] = React.useState<{ key: string; tracks: TrackInfo[] }>({
+    key: "",
+    tracks: [],
+  });
   const [mode, setMode] = React.useState<Mode>("peak");
   const [targetDb, setTargetDb] = React.useState(-1);
   const [guardDb, setGuardDb] = React.useState(-60);
@@ -90,12 +93,15 @@ export default function AudioNormalizerWorkspace() {
   const [bitDepth, setBitDepth] = React.useState<WavBitDepth>(16);
   const [kbps, setKbps] = React.useState<Mp3Bitrate>(192);
 
+  // The silence guard is part of the analysis, so it is part of the analysis
+  // key: changing it invalidates the previous result by comparison rather than
+  // by writing state back from an effect.
+  const analysisKey = queueKey + "|" + useGuard + "|" + guardDb;
+  const tracks = decoded.key === analysisKey ? decoded.tracks : [];
+
   React.useEffect(() => {
+    if (files.length === 0) return;
     let alive = true;
-    if (files.length === 0) {
-      setTracks([]);
-      return;
-    }
     void Promise.all(
       files.map(async (file): Promise<TrackInfo> => {
         try {
@@ -125,12 +131,12 @@ export default function AudioNormalizerWorkspace() {
         }
       }),
     ).then((value) => {
-      if (alive) setTracks(value);
+      if (alive) setDecoded({ key: analysisKey, tracks: value });
     });
     return () => {
       alive = false;
     };
-  }, [files, useGuard, guardDb]);
+  }, [files, analysisKey, useGuard, guardDb]);
 
   const options = React.useMemo<Options>(
     () => ({ mode, targetDb, guardDb, useGuard, limiter, format, bitDepth, kbps }),

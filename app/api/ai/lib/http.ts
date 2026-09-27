@@ -10,7 +10,7 @@
  * not turn it into an endpoint.
  */
 
-import { z, ZodError, type ZodType } from "zod";
+import { type z, ZodError, type ZodType } from "zod";
 import {
   AI_ERROR_MESSAGES,
   AI_ERROR_STATUS,

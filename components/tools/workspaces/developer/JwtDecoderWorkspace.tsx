@@ -52,7 +52,7 @@ export default function JwtDecoderWorkspace() {
   const [value, setValue] = React.useState(SAMPLE);
   const [secret, setSecret] = React.useState("");
   const [showSecret, setShowSecret] = React.useState(false);
-  const [verification, setVerification] = React.useState<JwtVerification>({ status: "not-attempted" });
+  const [verification, setVerification] = React.useState<JwtVerification | null>(null);
   const [verifying, setVerifying] = React.useState(false);
   const [now, setNow] = React.useState(0);
 
@@ -70,29 +70,27 @@ export default function JwtDecoderWorkspace() {
     };
   }, []);
 
-  const verify = React.useCallback(
-    async (target: JwtDecoded, key: string) => {
-      if (!key) {
-        setVerification({ status: "not-attempted" });
-        return;
-      }
-      setVerifying(true);
-      try {
-        setVerification(await verifyJwtHmac(target, key));
-      } finally {
-        setVerifying(false);
-      }
-    },
-    [],
+  const verify = React.useCallback(async (target: JwtDecoded, key: string) => {
+    setVerifying(true);
+    try {
+      setVerification(await verifyJwtHmac(target, key));
+    } finally {
+      setVerifying(false);
+    }
+  }, []);
+
+  // The visible verdict is derived: "no verdict" is simply the absence of a
+  // result for the current token and secret, so nothing has to be reset in an
+  // effect when the secret is cleared.
+  const verdict = React.useMemo<JwtVerification>(
+    () => (jwt && secret ? (verification ?? { status: "not-attempted" }) : { status: "not-attempted" }),
+    [jwt, secret, verification],
   );
 
   React.useEffect(() => {
-    if (!jwt || !secret) {
-      setVerification({ status: "not-attempted" });
-      return;
-    }
-    // Deferred and debounced: an HMAC over a pasted secret is real work, and a
-    // fast typist should not queue one per keystroke.
+    if (!jwt || !secret) return;
+    // Debounced: an HMAC over a pasted secret is real work, and a fast typist
+    // should not queue one per keystroke.
     const timer = setTimeout(() => {
       void verify(jwt, secret);
     }, 200);
@@ -260,28 +258,28 @@ export default function JwtDecoderWorkspace() {
                 )}
               </Field>
               <div
-                className={`flex items-start gap-2.5 rounded-[10px] border px-3.5 py-3 ${VERDICT_STYLE[verification.status]}`}
+                className={`flex items-start gap-2.5 rounded-[10px] border px-3.5 py-3 ${VERDICT_STYLE[verdict.status]}`}
                 role="status"
               >
                 <span aria-hidden="true" className="mt-0.5 shrink-0">
-                  {VERDICT_ICON[verification.status]}
+                  {VERDICT_ICON[verdict.status]}
                 </span>
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium">
-                    {verification.status === "valid"
+                    {verdict.status === "valid"
                       ? "Signature valid"
-                      : verification.status === "invalid"
+                      : verdict.status === "invalid"
                         ? "Signature invalid"
-                        : verification.status === "unsupported"
+                        : verdict.status === "unsupported"
                           ? "Cannot verify in a browser"
                           : verifying
                             ? "Checking…"
                             : "No verdict yet"}
                   </p>
                   <p className="mt-0.5 text-[13px] leading-relaxed text-[var(--text-ink)]">
-                    {verification.status === "not-attempted"
+                    {verdict.status === "not-attempted"
                       ? "Paste an HMAC secret to recompute the signature over header.payload and compare it in constant time."
-                      : verification.message}
+                      : verdict.message}
                   </p>
                 </div>
               </div>
@@ -355,7 +353,7 @@ export default function JwtDecoderWorkspace() {
               />
             </div>
 
-            {verification.status === "valid" ? (
+            {verdict.status === "valid" ? (
               <Notice tone="success" icon={<BadgeCheck className="size-4" />} title="What a valid signature does and does not mean.">
                 It proves the token was signed with a key you hold and has not been altered since. It says
                 nothing about whether the claims are true, whether the issuer is trustworthy, or whether the

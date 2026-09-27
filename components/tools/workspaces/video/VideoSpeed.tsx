@@ -61,11 +61,19 @@ export default function VideoSpeedWorkspace() {
   const sourceUrl = useObjectUrl(source);
 
   const [support, setSupport] = React.useState<MediaSupport | null>(null);
-  const [meta, setMeta] = React.useState<VideoMetaLite | null>(null);
-  const [metaError, setMetaError] = React.useState<string | null>(null);
+  // Probe results are tagged with the file they describe, so changing the file
+  // invalidates them by derivation rather than by resetting state in an effect.
+  const [probe, setProbe] = React.useState<{ key: string; meta: VideoMetaLite | null; error: string | null }>({
+    key: "",
+    meta: null,
+    error: null,
+  });
+  const probeKey = source ? `${source.name}:${source.size}:${source.lastModified}` : "";
+  const meta = probe.key === probeKey ? probe.meta : null;
+  const metaError = probe.key === probeKey ? probe.error : null;
 
   const [rate, setRate] = React.useState(2);
-  const [preservePitch, setPreservePitch] = React.useState(true);
+  const [preservePitchWanted, setPreservePitchWanted] = React.useState(true);
   const [formatId, setFormatId] = React.useState("webm-vp9");
   const [fps, setFps] = React.useState(30);
   const [keepAudio, setKeepAudio] = React.useState(true);
@@ -84,27 +92,34 @@ export default function VideoSpeedWorkspace() {
   }, []);
 
   React.useEffect(() => {
-    let alive = true;
-    setMeta(null);
-    setMetaError(null);
     if (!source) return;
+    let alive = true;
     void readVideoMeta(source)
-      .then((value) => alive && setMeta(value))
+      .then((value) => {
+        if (alive) setProbe({ key: probeKey, meta: value, error: null });
+      })
       .catch((error: unknown) => {
-        if (alive) setMetaError(error instanceof Error ? error.message : "This video could not be read.");
+        if (alive) {
+          setProbe({
+            key: probeKey,
+            meta: null,
+            error: error instanceof Error ? error.message : "This video could not be read.",
+          });
+        }
       });
     return () => {
       alive = false;
     };
-  }, [source]);
+  }, [source, probeKey]);
 
-  React.useEffect(() => {
-    if (typeof HTMLVideoElement === "undefined") return;
-    const probe = document.createElement("video");
-    if (!("preservesPitch" in probe) && !("webkitPreservesPitch" in probe)) {
-      setPreservePitch(false);
-    }
+  // `preservesPitch` is a real property check on a real element, not a guess
+  // from the user agent. Safari has never implemented it.
+  const preservePitchSupported = React.useMemo(() => {
+    if (typeof HTMLVideoElement === "undefined") return false;
+    const element = document.createElement("video");
+    return "preservesPitch" in element || "webkitPreservesPitch" in element;
   }, []);
+  const preservePitch = preservePitchWanted && preservePitchSupported;
 
   const picked = React.useMemo(
     () => (support ? pickVideoMime(videoFormatById(formatId).mime, support) : null),
@@ -311,8 +326,8 @@ export default function VideoSpeedWorkspace() {
                 label="Preserve pitch while changing speed"
                 description="Uses HTMLMediaElement.preservesPitch on the source element, so the compensation is baked into the recorded audio. Chrome, Edge and Firefox support it; Safari does not, and there the toggle has no effect."
                 checked={preservePitch}
-                disabled={!keepAudio}
-                onChange={(event) => setPreservePitch(event.target.checked)}
+                disabled={!keepAudio || !preservePitchSupported}
+                onChange={(event) => setPreservePitchWanted(event.target.checked)}
               />
 
               <Field label="Output format" hint="Driven by real MediaRecorder support in this browser.">
