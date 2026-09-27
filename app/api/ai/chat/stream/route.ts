@@ -7,6 +7,9 @@
  *     prompt there is no natural bound on a "conversation" a visitor posts.
  *   - `system` is an optional persona, **appended** to `CHAT_SYSTEM_PROMPT` so
  *     a visitor can shape the tone but cannot remove the honesty contract.
+ *   - `withSiteContext` additionally appends the site's real tool inventory.
+ *     The floating assistant sets it, because it is offered on every page and
+ *     would otherwise be a generic chat wearing the site's name.
  *
  * Out: `text/event-stream`, framed as
  *      `{ type: "delta" | "done" | "error", … }`.
@@ -22,8 +25,9 @@
 
 import { AiError, isAiConfigured } from "@/lib/ai/provider";
 import { streamChat, type StreamChatMessage } from "@/lib/ai/stream";
-import { CHAT_SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { CHAT_SYSTEM_PROMPT as CHAT_SYSTEM_PROMPTS_BASE, buildSiteContext } from "@/lib/ai/prompt";
 import { streamChatRequestSchema } from "@/lib/ai/schemas";
+import { CATEGORIES, TOOLS } from "@/lib/tools/registry";
 import { guardRateLimit, handleAiFailure, readJsonBody } from "../../lib/http";
 
 export const dynamic = "force-dynamic";
@@ -42,9 +46,12 @@ export async function POST(request: Request): Promise<Response> {
 
     // The visitor's persona is appended, never substituted for, so the honesty
     // contract cannot be edited away from the client.
-    const system = body.system
-      ? `${CHAT_SYSTEM_PROMPT}\n\nPersona requested by the user:\n${body.system}`
-      : CHAT_SYSTEM_PROMPT;
+    const sections = [CHAT_SYSTEM_PROMPTS_BASE];
+    if (body.withSiteContext) sections.push(buildSiteContext(CATEGORIES, TOOLS));
+    if (body.system) {
+      sections.push(`Persona requested by the user:\n${body.system}`);
+    }
+    const system = sections.join("\n\n");
 
     const messages: StreamChatMessage[] = [
       { role: "system", content: system },

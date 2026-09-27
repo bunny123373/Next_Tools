@@ -264,6 +264,11 @@ export interface StreamChatInput {
   messages: { role: "user" | "assistant"; content: string }[];
   system?: string;
   temperature?: number;
+  /**
+   * Append the site's tool inventory to the system prompt. The route builds it
+   * server-side; opt-in because it costs tokens on every turn.
+   */
+  withSiteContext?: boolean;
   signal: AbortSignal;
 }
 
@@ -300,6 +305,7 @@ export async function streamChatTurn(
         messages: input.messages,
         ...(input.system ? { system: input.system } : {}),
         ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+        ...(input.withSiteContext ? { withSiteContext: true } : {}),
       }),
       signal: input.signal,
     });

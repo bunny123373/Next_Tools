@@ -503,6 +503,13 @@ export const streamChatRequestSchema = z
      * which is the right choice for most conversations.
      */
     temperature: z.number().min(0).max(2).optional(),
+    /**
+     * Append the site's real tool inventory to the system prompt. Set by the
+     * floating assistant, which is offered site-wide and would otherwise be a
+     * generic chat wearing the site's name. Opt-in rather than default because
+     * it costs tokens on every turn.
+     */
+    withSiteContext: z.boolean().optional(),
   })
   .superRefine(validateStreamRequest);
 export type StreamChatRequest = z.infer<typeof streamChatRequestSchema>;

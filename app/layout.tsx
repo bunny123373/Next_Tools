@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Toaster } from "@/components/ui/toaster";
 import { ServiceWorker } from "@/components/layout/ServiceWorker";
+import { FloatingAgent } from "@/components/layout/FloatingAgent";
 import { SITE } from "@/lib/site";
 
 const inter = Inter({
@@ -108,6 +109,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Footer />
           <Toaster />
           <ServiceWorker />
+          {/* Renders nothing unless a provider is configured, so no page ever
+              shows a chat button that cannot work. */}
+          <FloatingAgent />
         </ThemeProvider>
       </body>
     </html>

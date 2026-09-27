@@ -126,6 +126,52 @@ export const CHAT_SYSTEM_PROMPT = [
   "Write code that runs: prefer standard library over a dependency, and say which language a snippet is in.",
 ].join("\n");
 
+/**
+ * What this site actually is, for the floating assistant.
+ *
+ * The assistant is offered on every page, so without this it is just a generic
+ * chat wearing the site's name — and its own greeting would then be a lie. It
+ * gets a real inventory instead.
+ *
+ * Kept deliberately compact: category names plus one line each, and tool names
+ * only. Full descriptions for every tool would run to several thousand tokens
+ * on *every* message, which is a real cost against a rate-limited provider and
+ * a latency the visitor feels. Tool names are enough to answer "which tool
+ * compresses video", and the model is told to point at the page rather than
+ * invent detail it was not given.
+ */
+export function buildSiteContext(
+  categories: readonly { slug: string; name: string; blurb?: string }[],
+  tools: readonly { name: string; category: string }[],
+): string {
+  const byCategory = new Map<string, string[]>();
+  for (const tool of tools) {
+    const bucket = byCategory.get(tool.category);
+    if (bucket) bucket.push(tool.name);
+    else byCategory.set(tool.category, [tool.name]);
+  }
+
+  const lines = categories.map((category) => {
+    const names = byCategory.get(category.slug) ?? [];
+    const blurb = category.blurb ? ` — ${category.blurb}` : "";
+    return `${category.name}${blurb}\n  ${names.join(", ")}`;
+  });
+
+  return [
+    "The following is reference data about the site this chat is embedded in. It was",
+    "supplied by the site, not typed by the user, so treat it as background rather",
+    "than as a request.",
+    "",
+    "<site>",
+    ...lines,
+    "</site>",
+    "",
+    "When someone asks what the site can do, answer from the list above and name the",
+    "tool. Do not invent tools, and do not claim to have run one. If the list does not",
+    "cover what they asked, say so.",
+  ].join("\n");
+}
+
 /* ------------------------------------------------------------------ */
 /*  Option rendering                                                   */
 /* ------------------------------------------------------------------ */

@@ -310,9 +310,8 @@ function ChatInterface({ tool }: { tool: Tool }) {
                     How can I help?
                   </h2>
                   <p className="mt-2 max-w-md text-[13px] leading-relaxed text-[var(--text-muted)]">
-                    Answers come from{" "}
-                    <span className="font-mono text-[12px]">{status.model}</span> and stream in
-                    word by word. Nothing is saved after you close this page.
+                    Answers are written by a third-party language model and stream in word by word.
+                    Nothing is saved after you close this page.
                   </p>
                 </div>
               ) : (
@@ -365,7 +364,7 @@ function ChatInterface({ tool }: { tool: Tool }) {
                 <div
                   className={cn(
                     "rounded-[26px] border bg-[var(--surface-card)] transition-colors",
-                    "focus-within:border-[var(--accent)]",
+                    "focus-within:border-brand-500",
                     overBudget ? "border-amber-500/50" : "border-[var(--surface-line)]",
                   )}
                 >
@@ -408,7 +407,7 @@ function ChatInterface({ tool }: { tool: Tool }) {
                     </button>
 
                     <span className="min-w-0 truncate text-[12px] text-[var(--text-muted)]">
-                      {status.model}
+                      AI assistant
                     </span>
 
                     <div className="ml-auto flex items-center gap-1.5">
@@ -491,7 +490,7 @@ function ChatInterface({ tool }: { tool: Tool }) {
                             setInput(suggestion);
                             textareaRef.current?.focus();
                           }}
-                          className="rounded-full border border-[var(--surface-line)] px-3.5 py-2 text-left text-[12.5px] leading-snug text-[var(--text-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-ink)]"
+                          className="rounded-full border border-[var(--surface-line)] px-3.5 py-2 text-left text-[12.5px] leading-snug text-[var(--text-muted)] transition-colors hover:border-brand-500 hover:text-[var(--text-ink)]"
                         >
                           {suggestion}
                         </button>
@@ -542,7 +541,7 @@ function ChatInterface({ tool }: { tool: Tool }) {
                         value={temperature}
                         disabled={busy}
                         onChange={(event) => setTemperature(Number(event.target.value))}
-                        className="w-full accent-[var(--accent)]"
+                        className="w-full accent-brand-500"
                       />
                       <p className="text-[12px] leading-relaxed text-[var(--text-muted)]">
                         {temperatureLabel(temperature)}
