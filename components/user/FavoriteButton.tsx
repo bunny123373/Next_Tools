@@ -4,6 +4,7 @@ import * as React from "react";
 import { Heart } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useFavorites } from "@/lib/user/hooks";
+import { useMounted } from "@/lib/hooks";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 
@@ -25,7 +26,16 @@ export function FavoriteButton({
   ...props
 }: FavoriteButtonProps) {
   const { isFavorite, toggle } = useFavorites();
-  const active = isFavorite(toolId);
+  /**
+   * Favourites live in localStorage, so the server cannot know them. Rendering
+   * the real value on the first client pass made the button disagree with the
+   * server's markup — "Add to favourites" becoming "Remove from favourites" —
+   * which React reports as a hydration mismatch and cannot patch. Gating on
+   * mount keeps the first render identical on both sides; the real state lands
+   * in the effect immediately after.
+   */
+  const mounted = useMounted();
+  const active = mounted && isFavorite(toolId);
   const label = active ? `Remove ${toolName} from favourites` : `Add ${toolName} to favourites`;
 
   return (

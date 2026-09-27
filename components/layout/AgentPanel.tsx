@@ -21,6 +21,7 @@ import * as React from "react";
 import { ArrowUp, RotateCcw, Sparkles, Square, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "@/lib/utils/toast";
+import { Textarea } from "@/components/ui/form";
 import { streamChatTurn, type StreamChatInput } from "@/components/tools/workspaces/ai/ai-client";
 import { AI_MAX_STREAM_CHARS, AI_MAX_STREAM_MESSAGES } from "@/lib/ai/schemas";
 import { formatNumber } from "@/lib/utils/format";
@@ -284,7 +285,7 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
           <label htmlFor="agent-input" className="sr-only">
             Your message
           </label>
-          <textarea
+          <Textarea
             id="agent-input"
             ref={inputRef}
             rows={1}
@@ -299,7 +300,11 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
                 onSend();
               }
             }}
-            className="max-h-[150px] min-h-[44px] w-full resize-none border-0 bg-transparent px-3.5 pt-3 text-[13.5px] leading-6 text-[var(--text-ink)] shadow-none placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0"
+            // Same cancellation as the AI Chat composer: the shared control's
+            // red `focus:` border and ring, and its 10px radius, all have to go
+            // or they draw a red box that does not match the 22px pill around
+            // it. The wrapper's `focus-within:` border is the focus cue instead.
+            className="max-h-[150px] min-h-[44px] w-full resize-none rounded-none border-0 border-transparent bg-transparent px-3.5 pt-3 text-[13.5px] leading-6 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:shadow-none"
           />
           <div className="flex items-center gap-1.5 px-2 pb-2">
             {hasUserTurn ? (

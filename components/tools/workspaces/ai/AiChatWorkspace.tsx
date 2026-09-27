@@ -386,7 +386,13 @@ function ChatInterface({ tool }: { tool: Tool }) {
                         onSend();
                       }
                     }}
-                    className="max-h-[200px] min-h-[52px] w-full resize-none border-0 bg-transparent px-4 pt-3.5 text-[15px] leading-6 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    // The shared control paints a red border and ring on `focus:`
+                    // and rounds to 10px. All three are cancelled here, using the
+                    // same `focus:` variant — `focus-visible:` would not, being a
+                    // different variant, and the ring drew a red rounded box that
+                    // did not line up with the 26px composer around it. The
+                    // container's `focus-within:` border is the only focus cue.
+                    className="max-h-[200px] min-h-[52px] w-full resize-none rounded-none border-0 border-transparent bg-transparent px-4 pt-3.5 text-[15px] leading-6 shadow-none hover:border-transparent focus:border-transparent focus:outline-none focus:ring-0 focus:ring-transparent focus:ring-offset-0 focus:shadow-none"
                   />
 
                   <div className="flex items-center gap-1.5 px-2.5 pb-2.5">

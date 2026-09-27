@@ -107,9 +107,10 @@ export default function TermsPage() {
 
         <h2>8. Intellectual property</h2>
         <p>
-          The Balu Tools name, design and code are owned by their respective owners. Open-source
-          components remain under their own licences. This site is offered for personal and
-          commercial use.
+          Balu Tools is open source under the MIT License. You may use, modify and redistribute
+          it, including commercially, under that License&apos;s terms. The Balu Tools name and
+          design are owned by their respective owners. Open-source components remain under their
+          own licences.
         </p>
 
         <h2>9. Termination</h2>
