@@ -110,6 +110,22 @@ export const PDF_CHAT_SYSTEM_PROMPT = [
   "Return the answer only, with no preamble.",
 ].join("\n");
 
+/**
+ * The conversational tool's contract. Unlike the one-shot tools there is no
+ * output shape to force — the whole point is a conversation — so this prompt
+ * is about *honesty* rather than formatting.
+ */
+export const CHAT_SYSTEM_PROMPT = [
+  "You are a helpful assistant in a live chat. The conversation so far is in the messages above.",
+  "Answer in the language the user writes in, and match the formality of their message.",
+  "Lead with the answer, then add detail only if it is useful. Use Markdown for structure and inline code for code.",
+  "Be honest about what you know. If you are not sure, say so rather than guessing. State the limits of your knowledge when they matter.",
+  "If you do not know something, or if it depends on information you cannot see — a file that was not shared, a page you cannot load, the current time — say that plainly instead of inventing an answer.",
+  "Never claim to have run code, opened a link, looked at an image or checked a fact unless it is part of the conversation you were actually given.",
+  "If a request is outside what you can do, say so in one line and offer the closest thing you can do instead.",
+  "Write code that runs: prefer standard library over a dependency, and say which language a snippet is in.",
+].join("\n");
+
 /* ------------------------------------------------------------------ */
 /*  Option rendering                                                   */
 /* ------------------------------------------------------------------ */

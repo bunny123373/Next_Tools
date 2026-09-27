@@ -25,6 +25,7 @@ export const WORKSPACES: Record<string, WorkspaceComponent> = {
   // ai
   "ai-background-generator": dynamic(() => import("./ai/AiBackgroundGeneratorWorkspace")),
   "ai-background-remover": dynamic(() => import("./ai/AiBackgroundRemoverWorkspace")),
+  "ai-chat": dynamic(() => import("./ai/AiChatWorkspace")),
   "ai-image-analyzer": dynamic(() => import("./ai/AiImageAnalyzerWorkspace")),
   "ai-image-enhancer": dynamic(() => import("./ai/AiImageEnhancerWorkspace")),
   "ai-image-generator": dynamic(() => import("./ai/AiImageGeneratorWorkspace")),

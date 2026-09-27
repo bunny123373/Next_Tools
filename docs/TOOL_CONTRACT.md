@@ -143,6 +143,22 @@ Never hardcode `50 * 1024 * 1024` inline.
 | Success | Result panel + `DownloadButton`, plus `toast.processingComplete()` |
 | Error | `ToolError` — never a raw stack trace, never a thrown Error string |
 
+### Long-running results
+
+`ProgressBar` with `percent={null}` is correct when a ratio is unknowable. Two
+cases need more than a bar:
+
+- **Streaming output.** `POST /api/ai/chat/stream` returns `text/event-stream`
+  frames (`delta` / `done` / `error`), and `streamChatTurn()` in
+  `components/tools/workspaces/ai/ai-client.ts` appends each delta as it lands.
+  Show the text as it arrives. Do **not** animate it in afterwards and do not
+  type it out with a timer — a simulated typewriter is a fake progress indicator
+  wearing a costume. While the first token is still in flight the honest state is
+  "Writing…", because time-to-first-token is not knowable in advance.
+- **User-cancellable work.** Wire an `AbortController` to the button that stops
+  it, pass its signal to `fetch`, and on abort **keep whatever arrived** and say
+  it stopped early. Aborting is not an error; do not show one.
+
 Progress honesty rules (hard requirement):
 - Report `percent` only when you can actually compute it (e.g. `done / total` files,
   or a known byte offset).
@@ -178,14 +194,35 @@ long enough to deserve tests. Engines must be:
 
 ## Registering the workspace
 
-Add a line to `components/tools/workspaces/registry.ts`:
+**Do not hand-edit `components/tools/workspaces/registry.tsx`.** It is generated:
 
-```tsx
-"image-compressor": dynamic(() => import("./image/ImageCompressorWorkspace")),
+```bash
+node scripts/sync-workspaces.mjs --write   # regenerate
+node scripts/sync-workspaces.mjs --check   # CI: fail if it is stale
 ```
 
-The key MUST equal the tool's `id`. `dynamic` gives each tool its own chunk, so
-opening one tool never downloads the other 100.
+The script walks `components/tools/workspaces/**` and writes one
+`dynamic(() => import(...))` line per workspace, keyed by the tool `id` from the
+registry. It fails loudly if a tool has no workspace or a workspace has no tool,
+so a typo in an id cannot silently produce a dead page. `dynamic` gives each tool
+its own chunk, so opening one tool never downloads the code for any other.
+
+A registered workspace takes **no props**. It looks its own tool up from the
+registry, so there is exactly one source of metadata and a workspace cannot be
+handed the wrong tool:
+
+```tsx
+const tool = getTool("image-compressor");
+
+export default function ImageCompressorWorkspace() {
+  if (!tool) return <MissingTool id="image-compressor" />;
+  return <ToolShell>{/* … */}</ToolShell>;
+}
+```
+
+A component that takes `{ tool }` as a prop is an *inner* component — fine for a
+panel shared between two tools (`AiPdfChatPanel`), wrong for a registry entry,
+which will not typecheck.
 
 ## Definitions of done
 

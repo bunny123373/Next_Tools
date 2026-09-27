@@ -675,4 +675,82 @@ export const AI_TOOLS: readonly Tool[] = [
     ],
     related: ["ai-background-remover", "ai-image-enhancer", "ai-image-generator", "ai-pdf-chat"],
   },
+  {
+    id: "ai-chat",
+    name: "AI Chat",
+    slug: "chat",
+    category: "ai",
+    description:
+      "A multi-turn conversation with a language model. Replies arrive word by word, it remembers the whole thread, and you can stop it mid-sentence.",
+    intro:
+      "Ask a question, follow up, change your mind. It keeps the thread of the conversation and writes its answer as it goes.",
+    icon: "MessageSquareText",
+    keywords: [
+      "chat",
+      "chatgpt",
+      "assistant",
+      "converse",
+      "conversation",
+      "ask ai",
+      "chatbot",
+      "talk to ai",
+    ],
+    route: "/tools/ai/chat",
+    processing: "ai",
+    status: "setup-required",
+    popular: true,
+    addedOn: "2026-09-27",
+    actionLabel: "Send",
+    setupNote: PROVIDER_SETUP_NOTE,
+    features: [
+      "Real token-by-token streaming over server-sent events, so the reply appears as it is written rather than all at once at the end",
+      "Keeps the whole conversation in the thread, up to 40 turns, and sends it along so follow-up questions have context",
+      "An optional persona — \"be terse\", \"answer in Spanish\", \"explain like I'm new to this\" — appended to the base prompt",
+      "A creativity control from 0 (consistent answers) to 2 (more inventive)",
+      "Stop generating at any point and keep what arrived so far",
+      "Regenerate the last reply, copy any message, clear the thread, and download the whole conversation as Markdown",
+      "The transcript is kept in this browser tab only. Nothing is stored on the server",
+    ],
+    howItWorks: [
+      "You type a message and press Send, or press Enter to send and Shift+Enter for a new line.",
+      "Your message and the conversation before it go to the configured provider through our server, which holds the API key so the browser never sees it.",
+      "The model writes its answer in small pieces. Each piece arrives and is shown immediately, so you can read along with it.",
+      "The finished reply is added to the thread. Your next message goes out with the whole conversation, so it can refer back to anything above.",
+    ],
+    faq: [
+      {
+        question: "Is this the same as ChatGPT?",
+        answer:
+          "No. It is a chat interface in front of whichever model the operator of this deployment configured, driven by AI_MODEL. It may be a much smaller model, and it has no memory between visits, no voice, no image input, no file uploads and no web browsing. It is a chat window, not a product with a company's years of tooling behind it.",
+      },
+      {
+        question: "Does it remember me between visits?",
+        answer:
+          "No. The conversation lives in the page and in this browser tab. Reload and it is gone. We store no transcripts and keep no database of what you asked, so we could not show you your history if you wanted it. Download the thread to Markdown if you want to keep it.",
+      },
+      {
+        question: "Why does it sometimes get things wrong?",
+        answer: QUALITY_ANSWER,
+      },
+      {
+        question: "Can I make it remember a fact across messages?",
+        answer:
+          "Yes, within one conversation — say \"my name is Sam and I use TypeScript\" and it will keep that for the rest of the thread. It is still just following instructions, so if the thread gets long or you change the subject hard, earlier details can get lost. The whole conversation is resent on every turn, so a very long thread will eventually exceed what the model can hold.",
+      },
+      {
+        question: "Where does my conversation go?",
+        answer: THIRD_PARTY_ANSWER,
+      },
+      {
+        question: "Does this cost anything?",
+        answer: COST_ANSWER,
+      },
+      {
+        question: "Why is this marked setup required?",
+        answer:
+          "Because no AI provider is configured on this deployment. The interface below is complete, but a message has nowhere to go until an operator sets AI_API_KEY, AI_BASE_URL and AI_MODEL. We would rather tell you that than show a box that silently fails.",
+      },
+    ],
+    related: ["ai-pdf-chat", "ai-text-generator", "ai-prompt-generator", "ai-rewriter"],
+  },
 ];

@@ -259,6 +259,10 @@ export const AI_PDF_TRANSPORT_CHARS = 120_000;
 export const AI_MAX_QUESTION_CHARS = 2_000;
 /** How many previous turns we replay into a PDF chat request. */
 export const AI_PDF_HISTORY_TURNS = 6;
+/** Budgets for the streaming conversational tool. */
+export const AI_MAX_STREAM_MESSAGES = 40;
+export const AI_MAX_TURN_CHARS = 8_000;
+export const AI_MAX_STREAM_CHARS = 64_000;
 /** Hard ceiling on the JSON body any AI route will parse. */
 export const AI_MAX_BODY_BYTES = 512 * 1024;
 /** Hard ceiling on a single decoded image, before base64 is re-encoded. */
@@ -467,6 +471,63 @@ export const chatRequestSchema = z
   .superRefine((value, ctx) => validateOptionsForTask(value.task, value.options, ctx));
 
 export type ChatRequest = z.infer<typeof chatRequestSchema>;
+
+/** A message in the transcript. `system` turns are added by the server, never sent. */
+export const streamMessageSchema = z.strictObject({
+  role: z.enum(["user", "assistant"]),
+  content: boundedText(AI_MAX_TURN_CHARS),
+});
+export type StreamMessage = z.infer<typeof streamMessageSchema>;
+
+/**
+ * `POST /api/ai/chat/stream` — the conversational tool.
+ *
+ * The browser owns the transcript, so it resends the whole conversation each
+ * turn. That makes it an attack surface the one-shot route is not: a visitor
+ * could post an arbitrarily long "conversation". Hence the two hard budgets
+ * below, checked *after* parsing so the error can name both at once.
+ *
+ * Note the cap is on the number of *messages*, not exchanges — a conversation
+ * with `AI_MAX_STREAM_MESSAGES` messages holds half as many question/answer
+ * pairs. Clients that budget on their own turn count will disagree with this
+ * and send requests the server rejects.
+ */
+export const streamChatRequestSchema = z
+  .strictObject({
+    /** The live transcript, oldest first. Must start with a user message. */
+    messages: z.array(streamMessageSchema).min(1).max(AI_MAX_STREAM_MESSAGES),
+    /** Per-conversation persona. Appended after the server's own prompt. */
+    system: optionalBoundedText(AI_MAX_SYSTEM_CHARS),
+    /**
+     * 0 = deterministic, 1 = inventive. Undefined leaves the model default,
+     * which is the right choice for most conversations.
+     */
+    temperature: z.number().min(0).max(2).optional(),
+  })
+  .superRefine(validateStreamRequest);
+export type StreamChatRequest = z.infer<typeof streamChatRequestSchema>;
+
+/** Enforces the conversation budgets and the opening turn. */
+function validateStreamRequest(
+  value: { messages: readonly { role: string; content: string }[] },
+  ctx: z.RefinementCtx,
+): void {
+  const total = value.messages.reduce((sum, turn) => sum + turn.content.length, 0);
+  if (total > AI_MAX_STREAM_CHARS) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["messages"],
+      message: `This conversation is ${Math.round(total / 1000)}k characters. The limit is ${Math.round(AI_MAX_STREAM_CHARS / 1000)}k — start a new chat to keep going.`,
+    });
+  }
+  if (value.messages[0]?.role !== "user") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["messages"],
+      message: "A conversation must start with your message.",
+    });
+  }
+}
 
 const imagePayloadSchema = z.strictObject({
   mime: z.enum(AI_ALLOWED_IMAGE_MIME),

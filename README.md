@@ -110,7 +110,7 @@ All optional. Nothing here has a default credential, and no secret is ever a
 | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | Canonical origin for metadata, sitemap, share links |
 | `AI_PROVIDER` | Provider id (default `openai-compatible`) |
-| `AI_API_KEY` | The 12 AI tools |
+| `AI_API_KEY` | Every tool in the AI category |
 | `AI_BASE_URL` | Any OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, Ollama…) |
 | `AI_MODEL` | Chat model id |
 | `AI_IMAGE_MODEL` | Image model id |

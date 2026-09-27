@@ -142,6 +142,12 @@ const MINUTE = 60_000;
 export const AI_RATE_POLICIES = {
   status: { limit: 60, windowMs: MINUTE },
   chat: { limit: 12, windowMs: MINUTE },
+  /**
+   * Each streaming turn replays the whole conversation, so a turn costs more
+   * than a one-shot completion even though the endpoint looks similar. Budgeted
+   * accordingly.
+   */
+  stream: { limit: 10, windowMs: MINUTE },
   image: { limit: 6, windowMs: MINUTE },
   vision: { limit: 8, windowMs: MINUTE },
   pdf: { limit: 6, windowMs: MINUTE },

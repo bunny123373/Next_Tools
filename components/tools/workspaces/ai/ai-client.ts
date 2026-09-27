@@ -20,8 +20,9 @@
  * knows a route path.
  */
 
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import {
+  AI_ERROR_CODES,
   AI_ERROR_MESSAGES,
   AI_PDF_TRANSPORT_CHARS,
   aiErrorResponseSchema,
@@ -252,6 +253,143 @@ export async function runPdf(input: PdfRequestInput): Promise<PdfResponse> {
     ...(input.file ? { fileBase64: await readAsDataURL(input.file) } : {}),
   });
   return parseOrFail(pdfResponseSchema, payload);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Streaming chat                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface StreamChatInput {
+  /** The transcript so far, oldest first, starting with a user turn. */
+  messages: { role: "user" | "assistant"; content: string }[];
+  system?: string;
+  temperature?: number;
+  signal: AbortSignal;
+}
+
+/** One frame off the stream. A closed set, validated before it reaches the UI. */
+export type StreamEvent =
+  | { type: "delta"; text: string }
+  | { type: "done" }
+  | { type: "error"; code: AiErrorCode; message: string };
+
+const streamEventSchema: ZodType<StreamEvent> = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("delta"), text: z.string() }),
+  z.object({ type: z.literal("done") }),
+  z.object({ type: z.literal("error"), code: z.enum(AI_ERROR_CODES), message: z.string() }),
+]);
+
+/**
+ * Streams one assistant turn, invoking `onDelta` for each piece as it lands.
+ *
+ * Returns the full reply so the caller can commit it. Throws `AiRequestError`
+ * for a failure that happened before or instead of the stream, matching
+ * `postJson`: a 429 or a validation failure arrives as the usual JSON envelope,
+ * not as a stream.
+ */
+export async function streamChatTurn(
+  input: StreamChatInput,
+  onDelta: (text: string) => void,
+): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch("/api/ai/chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: input.messages,
+        ...(input.system ? { system: input.system } : {}),
+        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+      }),
+      signal: input.signal,
+    });
+  } catch (caught) {
+    if (input.signal.aborted) throw caught;
+    throw new AiRequestError(
+      "network",
+      "We could not reach the server. Check your connection and try again.",
+    );
+  }
+
+  // A failure before the stream opens uses the shared JSON error envelope.
+  if (!response.ok || !response.body) throw await toError(response);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let reply = "";
+  let sawDone = false;
+
+  // Frames are separated by a blank line; a frame split across two reads is
+  // normal, so the tail is always kept rather than parsed eagerly.
+  const drain = (flush: boolean) => {
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf("\n\n");
+
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const raw = line.slice(5).trim();
+        if (!raw || raw === "[DONE]") continue;
+
+        const parsed = streamEventSchema.safeParse(safeJson(raw));
+        // An unrecognised frame is skipped, not fatal: one bad frame should not
+        // discard a reply that is otherwise arriving fine.
+        if (!parsed.success) continue;
+
+        const event = parsed.data;
+        if (event.type === "delta") {
+          reply += event.text;
+          onDelta(event.text);
+        } else if (event.type === "done") {
+          sawDone = true;
+        } else {
+          throw new AiRequestError(event.code, event.message);
+        }
+      }
+    }
+    if (flush && buffer.trim().length > 0) {
+      // A provider that closes without a trailing blank line still sent us a
+      // usable final frame; do not throw the text away.
+      for (const line of buffer.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const parsed = streamEventSchema.safeParse(safeJson(line.slice(5).trim()));
+        if (parsed.success && parsed.data.type === "delta") {
+          reply += parsed.data.text;
+          onDelta(parsed.data.text);
+        }
+      }
+      buffer = "";
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    buffer += decoder.decode(value, { stream: true });
+    drain(false);
+  }
+  drain(true);
+
+  if (!sawDone && reply.length === 0) {
+    throw new AiRequestError(
+      "upstream",
+      "The reply ended without any text. Try again in a moment.",
+    );
+  }
+
+  return reply;
+}
+
+function safeJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 /** Reads a picked image into the `{ mime, base64 }` shape the routes expect. */

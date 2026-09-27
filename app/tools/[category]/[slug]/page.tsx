@@ -23,8 +23,9 @@ export function generateStaticParams() {
   // Take category and slug from the registry fields rather than re-parsing
   // `route`. An earlier version did `const [, category, slug] = route.split("/")`,
   // which silently took "tools" as the category and the real category as the
-  // slug — collapsing all 100 tools onto a handful of wrong params and 404ing
-  // every tool page.
+  // slug — collapsing every tool in the registry onto a handful of wrong params
+  // and 404ing every tool page. The count is deliberately not written here; it
+  // changes every time a tool is added.
   return TOOLS.map((tool) => ({ category: tool.category, slug: tool.slug }));
 }
 

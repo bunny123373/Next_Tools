@@ -64,3 +64,4 @@ lib/**/*.js
 # Tooling output
 .lint.json
 .tsc-errors.txt
+*.log
