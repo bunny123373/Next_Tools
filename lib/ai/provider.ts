@@ -125,6 +125,17 @@ export interface ProviderConfig {
   model: string;
   /** Image model, or `null` when image generation is not configured. */
   imageModel: string | null;
+  /**
+   * Model for `/images/edits`, or `null` when image editing is not configured.
+   *
+   * Separate from `imageModel` because providers do not use one model for both.
+   * xkiro is the concrete case: `AI_IMAGE_MODEL=sensenova/sensenova-u1.5-lite`
+   * generates images but rejects edits outright —
+   *   'Image editing is not available for model "sensenova/sensenova-u1.5-lite".
+   *    Models that support editing: openai/gpt-image-2.5.'
+   * — so the four editing tools need their own id.
+   */
+  editModel: string | null;
   /** Per-attempt timeout. */
   timeoutMs: number;
   /** Upper bound on completion tokens, or `null` to let the provider decide. */
@@ -162,6 +173,7 @@ export function getAiConfig(): ProviderConfig {
     apiKey: env("AI_API_KEY") ?? "",
     model: env("AI_MODEL") ?? DEFAULT_MODEL,
     imageModel: env("AI_IMAGE_MODEL") ?? null,
+    editModel: env("AI_EDIT_MODEL") ?? null,
     timeoutMs: parsePositiveInt(env("AI_TIMEOUT_MS"), DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS),
     maxOutputTokens: parsePositiveInt(
       env("AI_MAX_OUTPUT_TOKENS"),
@@ -590,6 +602,11 @@ export function classifyHttpError(
 
   if (status === 401 || status === 403) return new AiError("auth", { detail });
   if (status === 429) return new AiError("rate_limited", { detail, ...retry });
+  // 402 is "out of credit" on every gateway that uses it, and it falls through
+  // to the generic `upstream` branch otherwise — which tells the visitor the
+  // failure is "usually temporary". It is not. xkiro's wording is
+  // 'Insufficient wallet balance — please top up to continue.'
+  if (status === 402) return new AiError("billing", { detail });
   if (status === 408 || status === 504) return new AiError("timeout", { detail });
   if (looksLikeContentFilter(hint)) return new AiError("content_filtered", { detail });
   if (status === 400 || status === 422) return new AiError("bad_request", { detail });
@@ -911,13 +928,16 @@ class OpenAiCompatibleProvider implements AiProvider {
   }
 
   async editImage(request: AiImageEditRequest): Promise<AiImageResult> {
-    const model = this.requireImageModel(request.model);
+    const model = this.requireEditModel(request.model);
     const extension = request.image.mime.split("/")[1] ?? "png";
 
     const form = new FormData();
     form.append("model", model);
     form.append("prompt", request.prompt);
-    form.append("n", "1");
+    // `n` is deliberately NOT sent. Multipart fields are always strings, and
+    // xkiro's edit models validate `n` as a JSON integer:
+    //   'Invalid value for "n": must be a positive integer.'
+    // for the string "1". Omitting it yields the provider default of one image.
     if (request.size) form.append("size", request.size);
     form.append(
       "image",
@@ -933,7 +953,19 @@ class OpenAiCompatibleProvider implements AiProvider {
       ...(request.signal ? { signal: request.signal } : {}),
     });
 
-    return readImage(response.payload, model);
+    // The same two shapes as `generateImage`: inline data, or a queued job that
+    // has to be polled and whose result is a CDN URL. Reading it synchronously
+    // would reject every URL response, which is all xkiro returns.
+    if (Array.isArray(response.payload.data)) {
+      const first = response.payload.data[0];
+      if (typeof first === "object" && first !== null) {
+        const url = asString((first as Record<string, unknown>).url);
+        if (url) return inlineProviderImage(this.config, url, model, request.signal);
+      }
+      return readImage(response.payload, model);
+    }
+
+    return this.pollImageJob(response.payload, model, request.signal);
   }
 
   async listModels(): Promise<string[]> {
@@ -965,6 +997,25 @@ class OpenAiCompatibleProvider implements AiProvider {
     const model = requested ?? getAiConfig().imageModel;
     if (!model) {
       throw new AiError("not_configured", { detail: "AI_IMAGE_MODEL is not set" });
+    }
+    return model;
+  }
+
+  /**
+   * The edit model, which falls back to the image model.
+   *
+   * The fallback is deliberate: on a provider where one id does both jobs —
+   * OpenAI's `gpt-image-1` is the obvious case — requiring a second variable
+   * would break a working setup. Where the provider separates them, setting
+   * AI_EDIT_MODEL is what makes the editing tools work.
+   */
+  private requireEditModel(requested?: string): string {
+    const config = getAiConfig();
+    const model = requested ?? config.editModel ?? config.imageModel;
+    if (!model) {
+      throw new AiError("not_configured", {
+        detail: "neither AI_EDIT_MODEL nor AI_IMAGE_MODEL is set",
+      });
     }
     return model;
   }

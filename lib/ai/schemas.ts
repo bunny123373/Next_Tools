@@ -679,6 +679,13 @@ export const AI_ERROR_CODES = [
   "upstream",
   "content_filtered",
   "network",
+  /**
+   * The provider's account has run out of credit (HTTP 402). Distinct from
+   * `upstream` because it is NOT temporary: telling someone to "try again in a
+   * moment" when the real problem is an empty wallet sends them in circles
+   * instead of telling the operator what to fix.
+   */
+  "billing",
 ] as const;
 export type AiErrorCode = (typeof AI_ERROR_CODES)[number];
 
@@ -699,6 +706,8 @@ export const AI_ERROR_MESSAGES: Readonly<Record<AiErrorCode, string>> = {
   content_filtered:
     "The AI provider refused to answer that. Its safety filter most likely triggered on the wording of your input.",
   network: "We could not reach the AI provider from the server. Check the provider URL and try again.",
+  billing:
+    "The AI provider's account has run out of credit, so this tool cannot run until it is topped up. This is a server-side billing problem, not something you can fix in the browser.",
 };
 
 /** HTTP status for each failure class. */
@@ -711,6 +720,7 @@ export const AI_ERROR_STATUS: Readonly<Record<AiErrorCode, number>> = {
   upstream: 502,
   content_filtered: 422,
   network: 502,
+  billing: 402,
 };
 
 export const aiErrorResponseSchema = z.strictObject({
@@ -777,6 +787,12 @@ export const statusResponseSchema = z.strictObject({
   provider: z.string().nullable(),
   model: z.string().nullable(),
   imageModel: z.string().nullable(),
+  /**
+   * Present only once an edit-capable model is configured. `null` means the
+   * editing tools have no model, which is a different failure from "the
+   * provider cannot edit" and the setup panel should say so.
+   */
+  editModel: z.string().nullable().optional(),
   features: z.strictObject({
     chat: z.boolean(),
     image: z.boolean(),

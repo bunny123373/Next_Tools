@@ -141,6 +141,20 @@ The conversational tools stream over server-sent events, so replies arrive word 
 rather than all at once. Only text deltas cross the wire — frames are assembled server-side,
 so no credential can reach a browser.
 
+**Generation and editing are separate models.** Most providers use one id for text-to-image
+and a different one for `/images/edits`, so they are separate variables
+(`AI_IMAGE_MODEL`, `AI_EDIT_MODEL`). Omitting the second falls back to the first, which is
+right when one model does both. When it is wrong, the gateway usually says so in a useful
+way — xkiro's is:
+
+> Image editing is not available for model "sensenova/sensenova-u1.5-lite".
+> Models that support editing: openai/gpt-image-2.5.
+
+Two other provider differences are handled rather than exposed: some gateways answer image
+requests **synchronously** and others queue a job to be polled, and some return inline bytes
+while others return a CDN URL. Both shapes are handled, and a URL is downloaded server-side
+under guards so the server never becomes an open proxy.
+
 ---
 
 ## 🔒 Privacy model
@@ -172,7 +186,8 @@ variable** — those are inlined into the browser bundle.
 | `AI_API_KEY` | Every tool in the AI category |
 | `AI_BASE_URL` | Any OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, Ollama…) |
 | `AI_MODEL` | Chat model id |
-| `AI_IMAGE_MODEL` | Image model id |
+| `AI_IMAGE_MODEL` | Text-to-image model id |
+| `AI_EDIT_MODEL` | Image-editing model id, when it differs from `AI_IMAGE_MODEL` |
 | `PDF_ENCRYPTION_API_KEY` | PDF password protect / remove |
 | `TRANSCRIPTION_API_KEY` | Audio to Text |
 | `TOOL_REQUESTS_ENDPOINT` | Persists tool requests (otherwise in-memory) |

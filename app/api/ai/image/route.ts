@@ -13,9 +13,10 @@
  *
  * Out: `{ ok: true, image: { mime, base64 }, model, revisedPrompt? }`.
  *
- * Setup: when `AI_IMAGE_MODEL` is missing, or the resolved adapter has no image
- * capability, this answers `501` and names the exact variable to set. It never
- * pretends to have generated something.
+ * Setup: when `AI_IMAGE_MODEL` (or `AI_EDIT_MODEL` for the edit tasks) is
+ * missing, or the resolved adapter has no image capability, this answers `501`
+ * and names the exact variable to set. It never pretends to have generated
+ * something.
  */
 
 import { AiError, getAiConfig, isAiConfigured, resolveProvider, type AiImageResult } from "@/lib/ai/provider";
@@ -47,7 +48,22 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const config = getAiConfig();
-    if (!config.imageModel) {
+    const edit = isImageEditTask(task);
+
+    if (edit) {
+      // Editing needs a model that can edit. Most providers split generation and
+      // editing across different ids — xkiro's own error names the one it wants:
+      //   'Image editing is not available for model "sensenova/sensenova-u1.5-lite".
+      //    Models that support editing: openai/gpt-image-2.5.'
+      // Saying that here means a misconfiguration produces a 501 naming the
+      // variable, rather than a confusing 400 from the provider.
+      if (!config.editModel && !config.imageModel) {
+        throw new HttpError(
+          "not_configured",
+          "Image editing is not configured. Set AI_EDIT_MODEL to a model that supports /v1/images/edits (for example gpt-image-1) and restart the server.",
+        );
+      }
+    } else if (!config.imageModel) {
       throw new HttpError(
         "not_configured",
         "Image generation is not configured. Set AI_IMAGE_MODEL to an image model id your provider offers (for example gpt-image-1 or dall-e-3) and restart the server.",
@@ -55,7 +71,6 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const provider = resolveProvider();
-    const edit = isImageEditTask(task);
 
     if (edit && typeof provider.editImage !== "function") {
       throw new HttpError(
