@@ -155,6 +155,11 @@ requests **synchronously** and others queue a job to be polled, and some return 
 while others return a CDN URL. Both shapes are handled, and a URL is downloaded server-side
 under guards so the server never becomes an open proxy.
 
+Image tools also **report real progress**. The provider's poll loop is the only thing that
+knows how a queued job is going, so it is streamed to the browser rather than guessed at:
+measured elapsed time and status-check count, never a percentage. Nobody knows how far
+through an image a model is, and a bar that fills at a made-up rate is worse than no bar.
+
 ---
 
 ## 🔒 Privacy model

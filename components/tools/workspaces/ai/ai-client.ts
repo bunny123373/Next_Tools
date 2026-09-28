@@ -203,6 +203,13 @@ export interface ImageRequestInput {
   file?: File;
 }
 
+/**
+ * Runs an image request without asking for progress.
+ *
+ * Kept as the simple path and as the fallback: `runImageStreaming` drops to this
+ * shape whenever the server does not answer with a stream, so a proxy that
+ * strips `Accept` still gets a working tool.
+ */
 export async function runImage(input: ImageRequestInput): Promise<ImageResponse> {
   const image = input.file ? await encodeImage(input.file) : undefined;
   const payload = await postJson("/api/ai/image", {
@@ -212,6 +219,129 @@ export async function runImage(input: ImageRequestInput): Promise<ImageResponse>
     ...(image ? { image } : {}),
   });
   return parseOrFail(imageResponseSchema, payload);
+}
+
+/**
+ * A real point in a queued image job, as reported by the provider's poll loop.
+ * `polls` and `elapsedMs` are measured, so a workspace may display them
+ * verbatim. There is no percentage, because nobody knows one.
+ */
+export type ImageStage =
+  | { phase: "submitting" }
+  | { phase: "generating"; polls: number; elapsedMs: number }
+  | { phase: "fetching"; polls: number; elapsedMs: number };
+
+const imageStageSchema: ZodType<ImageStage> = z.union([
+  z.object({ phase: z.literal("submitting") }),
+  z.object({ phase: z.literal("generating"), polls: z.number(), elapsedMs: z.number() }),
+  z.object({ phase: z.literal("fetching"), polls: z.number(), elapsedMs: z.number() }),
+]);
+
+/**
+ * Runs an image request and reports real stages as they arrive.
+ *
+ * Falls back to the plain JSON call if the server does not answer with a
+ * stream, so a deployment behind a proxy that strips `Accept` still works —
+ * it just gets no progress, which is honest.
+ */
+export async function runImageStreaming(
+  input: ImageRequestInput,
+  onStage: (stage: ImageStage) => void,
+): Promise<ImageResponse> {
+  const image = input.file ? await encodeImage(input.file) : undefined;
+  const body = JSON.stringify({
+    task: input.task,
+    prompt: input.prompt,
+    options: input.options,
+    ...(image ? { image } : {}),
+  });
+
+  let response: Response;
+  try {
+    response = await fetch("/api/ai/image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body,
+    });
+  } catch {
+    throw new AiRequestError(
+      "network",
+      "We could not reach the server. Check your connection and try again.",
+    );
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/event-stream")) {
+    // Not a stream: a validation or rate-limit failure, in the usual envelope.
+    throw await toError(response);
+  }
+  if (!response.body) throw await toError(response);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let imageResult: ImageResponse | null = null;
+  let failure: AiRequestError | null = null;
+
+  const drain = (flush: boolean) => {
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      boundary = buffer.indexOf("\n\n");
+
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const raw = line.slice(5).trim();
+        if (!raw || raw === "[DONE]") continue;
+
+        let event: { type?: string };
+        try {
+          event = JSON.parse(raw) as { type?: string };
+        } catch {
+          continue;
+        }
+
+        if (event.type === "stage") {
+          const parsed = imageStageSchema.safeParse(
+            (event as { stage?: unknown }).stage,
+          );
+          if (parsed.success) onStage(parsed.data);
+        } else if (event.type === "image") {
+          const parsed = imageResponseSchema.safeParse({ ok: true, ...(event as object) });
+          if (parsed.success) imageResult = parsed.data;
+        } else if (event.type === "error") {
+          const record = event as { code?: unknown; message?: unknown };
+          const code = AI_ERROR_CODES.includes(record.code as never)
+            ? (record.code as AiErrorCode)
+            : "upstream";
+          failure = new AiRequestError(
+            code,
+            typeof record.message === "string" ? record.message : "The image could not be generated.",
+          );
+        }
+      }
+    }
+    if (flush) buffer = "";
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    buffer += decoder.decode(value, { stream: true });
+    drain(false);
+  }
+  drain(true);
+
+  if (failure) throw failure;
+  if (!imageResult) {
+    throw new AiRequestError(
+      "upstream",
+      "The server sent a response we could not understand.",
+    );
+  }
+  return imageResult;
 }
 
 export interface VisionRequestInput {

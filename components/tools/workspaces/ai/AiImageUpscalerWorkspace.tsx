@@ -15,7 +15,7 @@ import { STRENGTH_CHOICES, UPSCALE_SIZE_CHOICES, type AiControl } from "./contro
 const tool = getTool("ai-image-upscaler");
 
 const CONTROLS: readonly AiControl[] = [
-  { kind: "segmented", key: "size", label: "Target size", default: "1024x1024", options: UPSCALE_SIZE_CHOICES },
+  { kind: "ratio", key: "size", label: "Target size", default: "1024x1024", options: UPSCALE_SIZE_CHOICES },
   {
     kind: "segmented",
     key: "strength",

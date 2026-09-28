@@ -22,7 +22,9 @@
 import * as React from "react";
 import { Info, Sparkles, Upload } from "lucide-react";
 import { ToolShell, PrivacyNote } from "@/components/tools/ToolShell";
-import { ProgressBar } from "@/components/tools/ProgressBar";
+// The indeterminate ProgressBar that used to sit here was replaced by
+// `GeneratingPanel`, which reports the provider's real stages instead of a bar
+// that cannot know its own percentage.
 import { FileDropzone } from "@/components/tools/FileDropzone";
 import { ImagePreview } from "@/components/tools/FilePreview";
 import { CopyButton, DownloadButton } from "@/components/tools/DownloadButton";
@@ -43,7 +45,12 @@ import {
   type AiVisionTask,
 } from "@/lib/ai/schemas";
 import type { Tool } from "@/lib/tools/types";
-import { AiRequestError, runImage, runVision } from "./ai-client";
+import {
+  AiRequestError,
+  runImageStreaming,
+  runVision,
+  type ImageStage,
+} from "./ai-client";
 import { AiControls, defaultControlValues, type AiControl, type AiControlValues } from "./controls";
 import { AiCheckingState, AiSetupState, useAiStatus } from "./useAiStatus";
 
@@ -101,6 +108,12 @@ export default function AiImageWorkspace(props: AiImageWorkspaceProps) {
   const [model, setModel] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  /**
+   * The provider's real position in a queued job. Null before the first frame.
+   * Deliberately no percentage: nobody knows how far through an image a model
+   * is, so the panel reports measured elapsed time instead of inventing a ratio.
+   */
+  const [stage, setStage] = React.useState<ImageStage | null>(null);
   const [sourceUrl, setSourceUrl] = React.useState<string | null>(null);
 
   const ready = status.state === "ready";
@@ -159,6 +172,7 @@ export default function AiImageWorkspace(props: AiImageWorkspaceProps) {
     if (!canRun) return;
 
     setBusy(true);
+    setStage(null);
     reset();
 
     try {
@@ -175,12 +189,15 @@ export default function AiImageWorkspace(props: AiImageWorkspaceProps) {
         return;
       }
 
-      const response = await runImage({
-        task: props.task,
-        prompt: prompt.trim(),
-        options: values as AiOptions,
-        ...(file ? { file } : {}),
-      });
+      const response = await runImageStreaming(
+        {
+          task: props.task,
+          prompt: prompt.trim(),
+          options: values as AiOptions,
+          ...(file ? { file } : {}),
+        },
+        setStage,
+      );
       setImage(response.image);
       setRevisedPrompt(response.revisedPrompt ?? null);
       setModel(response.model);
@@ -295,13 +312,7 @@ export default function AiImageWorkspace(props: AiImageWorkspaceProps) {
                 </span>
               </div>
 
-              {busy ? (
-                <ProgressBar
-                  stage="processing"
-                  percent={null}
-                  caption="The model is working. This can take from a few seconds to over a minute, and we cannot know how far along it is."
-                />
-              ) : null}
+              {busy ? <GeneratingPanel stage={stage} size={values.size} style={values.style} /> : null}
             </div>
 
             {error ? (
@@ -410,5 +421,122 @@ export default function AiImageWorkspace(props: AiImageWorkspaceProps) {
         )}
       </div>
     </ToolShell>
+  );
+}
+
+/** The three steps, in the order the provider actually reports them. */
+const STEPS = [
+  { phase: "submitting", label: "Sending your prompt" },
+  { phase: "generating", label: "The model is drawing" },
+  { phase: "fetching", label: "Fetching the finished image" },
+] as const;
+
+function stageIndex(phase: ImageStage["phase"]): number {
+  return STEPS.findIndex((step) => step.phase === phase);
+}
+
+/**
+ * What the user sees while an image is being made.
+ *
+ * Two honest choices. The box is drawn at the aspect ratio actually requested,
+ * so the page does not jump when the image lands. And the steps come from the
+ * provider's own report of where a queued job is, with a real elapsed-seconds
+ * counter — never a percentage, because no one knows how far through an image
+ * a model is. A bar filling at a made-up rate is worse than no bar.
+ */
+function GeneratingPanel({
+  stage,
+  size,
+  style,
+}: {
+  stage: ImageStage | null;
+  size: unknown;
+  style: unknown;
+}) {
+  const active = stage ? stageIndex(stage.phase) : 0;
+  const elapsed = stage && "elapsedMs" in stage ? Math.round(stage.elapsedMs / 1000) : null;
+  const polls = stage && "polls" in stage ? stage.polls : null;
+
+  // The requested canvas, so the placeholder matches the result's shape.
+  const [w, h] = typeof size === "string" ? size.split("x").map(Number) : [1, 1];
+  const ratio = Number.isFinite(w) && Number.isFinite(h) && h > 0 ? w / h : 1;
+  const boxWidth = ratio >= 1 ? "max-w-[300px]" : "max-w-[210px]";
+
+  return (
+    <div className="flex flex-col gap-3" aria-live="polite">
+      <div className="flex flex-col items-center gap-3.5">
+        <div
+          className={`relative w-full ${boxWidth} overflow-hidden rounded-xl border border-[var(--surface-line)] bg-[var(--surface-card-2)]`}
+          style={{ aspectRatio: String(ratio) }}
+        >
+          {/* A shimmer, not a fill: it says "waiting", not "62% done". */}
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 animate-pulse bg-gradient-to-br from-[var(--surface-line)]/40 via-transparent to-[var(--surface-line)]/40"
+          />
+          <div className="absolute inset-0 grid place-items-center px-4 text-center">
+            <p className="text-[12.5px] leading-relaxed text-[var(--text-muted)]">
+              {stage?.phase === "fetching"
+                ? "Almost there — downloading the finished image."
+                : "The model is working. This usually takes a few seconds."}
+            </p>
+          </div>
+        </div>
+
+        <ol className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1.5">
+          {STEPS.map((step, index) => {
+            const done = index < active;
+            const current = index === active;
+            return (
+              <li key={step.phase} className="flex items-center gap-2">
+                <span
+                  className={`flex items-center gap-1.5 text-[12px] ${
+                    current
+                      ? "font-medium text-[var(--text-ink)]"
+                      : done
+                        ? "text-emerald-500"
+                        : "text-[var(--text-muted)]"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`grid size-4 place-items-center rounded-full border text-[9px] ${
+                      current
+                        ? "border-brand-500 bg-brand-500/20"
+                        : done
+                          ? "border-emerald-500 bg-emerald-500/20"
+                          : "border-[var(--surface-line)]"
+                    }`}
+                  >
+                    {done ? "✓" : index + 1}
+                  </span>
+                  {step.label}
+                </span>
+                {index < STEPS.length - 1 ? (
+                  <span aria-hidden="true" className="text-[var(--text-muted)]">
+                    ·
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <p className="text-center text-[12px] leading-relaxed text-[var(--text-muted)]">
+        {elapsed !== null ? (
+          <>
+            {elapsed}s elapsed
+            {polls !== null ? ` · ${polls} status ${polls === 1 ? "check" : "checks"}` : ""}. We
+            cannot show a percentage, because the model does not report one.
+          </>
+        ) : (
+          <>
+            {typeof style === "string" && style ? `Style: ${style}. ` : ""}
+            We cannot show a percentage, because the model does not report one.
+          </>
+        )}
+      </p>
+    </div>
   );
 }

@@ -20,8 +20,8 @@ import {
 const tool = getTool("ai-background-generator");
 
 const CONTROLS: readonly AiControl[] = [
-  { kind: "segmented", key: "size", label: "Canvas", default: "1024x1024", options: SIZE_CHOICES },
-  { kind: "select", key: "style", label: "Background type", default: "studio-backdrop", options: BACKGROUND_STYLE_CHOICES },
+  { kind: "ratio", key: "size", label: "Canvas", default: "1024x1024", options: SIZE_CHOICES },
+  { kind: "style", key: "style", label: "Background type", default: "studio-backdrop", options: BACKGROUND_STYLE_CHOICES },
   { kind: "segmented", key: "detail", label: "Detail", default: "medium", options: DETAIL_CHOICES },
   { kind: "slider", key: "creativity", label: "Creativity", default: 0.5 },
 ];

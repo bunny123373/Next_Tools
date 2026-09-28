@@ -11,7 +11,12 @@
  *     an image in and returns an image out, and `/api/ai/vision` is the
  *     image-in/text-out route. The two share the same MIME and size guards.
  *
- * Out: `{ ok: true, image: { mime, base64 }, model, revisedPrompt? }`.
+ * Out: `{ ok: true, image: { mime, base64 }, model, revisedPrompt? }`, or —
+ * when the client sends `Accept: text/event-stream` — a stream of
+ * `{ type: "stage", stage }` frames followed by `{ type: "image", … }` or
+ * `{ type: "error", … }`. The stage frames carry the provider's real poll
+ * count and elapsed time, so an interface can show where a queued job is
+ * instead of animating a progress bar nobody can justify.
  *
  * Setup: when `AI_IMAGE_MODEL` (or `AI_EDIT_MODEL` for the edit tasks) is
  * missing, or the resolved adapter has no image capability, this answers `501`
@@ -19,7 +24,7 @@
  * something.
  */
 
-import { AiError, getAiConfig, isAiConfigured, resolveProvider, type AiImageResult } from "@/lib/ai/provider";
+import { AiError, getAiConfig, isAiConfigured, resolveProvider, type AiImageResult, type AiImageStage } from "@/lib/ai/provider";
 import { HttpError, NO_STORE, guardRateLimit, handleAiFailure, readJsonBody } from "../lib/http";
 import { IMAGE_SYSTEM_PROMPTS, IMAGE_TASK_DIRECTIVES, buildImageUserMessage } from "@/lib/ai/prompt";
 import {
@@ -91,25 +96,102 @@ export async function POST(request: Request): Promise<Response> {
       IMAGE_TASK_DIRECTIVES[task] ?? [],
     );
     const size = body.options.size;
+    const image = body.image;
+    if (edit && !image) {
+      throw new HttpError("bad_request", "This tool needs an uploaded image to work on.");
+    }
 
-    let result: AiImageResult | undefined;
-    if (edit) {
-      const image = body.image;
-      if (!image) {
-        throw new HttpError("bad_request", "This tool needs an uploaded image to work on.");
+    /**
+     * The one call, shared by both transports. `onStage` is the provider
+     * reporting where a queued job actually is — measured poll counts and real
+     * elapsed time, never an invented percentage.
+     */
+    const run = async (onStage?: (stage: AiImageStage) => void): Promise<AiImageResult> => {
+      const result = edit
+        ? await provider.editImage?.({
+            prompt: `${IMAGE_SYSTEM_PROMPTS.edit ?? ""}\n\n${prompt}`,
+            image: image as NonNullable<typeof image>,
+            ...(size ? { size } : {}),
+            onStage,
+          })
+        : await provider.generateImage?.({
+            prompt,
+            ...(size ? { size } : {}),
+            onStage,
+          });
+
+      if (!result) {
+        throw new AiError("upstream", { detail: "the provider returned no image" });
       }
-      result = await provider.editImage?.({
-        prompt: `${IMAGE_SYSTEM_PROMPTS.edit ?? ""}\n\n${prompt}`,
-        image,
-        ...(size ? { size } : {}),
+      return result;
+    };
+
+    // Streaming is opt-in. The provider's poll loop is the only thing that
+    // knows how a queued job is progressing, so progress is reported by
+    // streaming it rather than by guessing at it client-side.
+    if (request.headers.get("accept")?.includes("text/event-stream")) {
+      const encoder = new TextEncoder();
+      const frame = (payload: Record<string, unknown>) =>
+        encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
+
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const abort = new AbortController();
+          request.signal.addEventListener("abort", () => abort.abort(), { once: true });
+          let closed = false;
+          const send = (payload: Record<string, unknown>) => {
+            if (closed) return;
+            controller.enqueue(frame(payload));
+          };
+          const finish = () => {
+            if (closed) return;
+            closed = true;
+            try {
+              controller.close();
+            } catch {
+              /* already closed by cancel() */
+            }
+          };
+
+          try {
+            const result = await run((stage) => send({ type: "stage", stage }));
+            send({
+              type: "image",
+              image: { mime: result.mime, base64: result.base64 },
+              model: result.model,
+              ...(result.revisedPrompt ? { revisedPrompt: result.revisedPrompt } : {}),
+            });
+          } catch (caught) {
+            // Once the stream is open the status can no longer change, so a
+            // failure arrives as a final frame using the same public wording.
+            if (!abort.signal.aborted) {
+              const response = handleAiFailure(caught, "image");
+              const payload = (await response.json()) as {
+                error?: { code?: string; message?: string };
+              };
+              send({
+                type: "error",
+                code: payload.error?.code ?? "upstream",
+                message: payload.error?.message ?? "The image could not be generated.",
+              });
+            }
+          } finally {
+            finish();
+          }
+        },
       });
-    } else {
-      result = await provider.generateImage?.({ prompt, ...(size ? { size } : {}) });
+
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-store, no-transform",
+          "X-Accel-Buffering": "no",
+        },
+      });
     }
 
-    if (!result) {
-      throw new AiError("upstream", { detail: "the provider returned no image" });
-    }
+    const result = await run();
 
     return Response.json(
       {

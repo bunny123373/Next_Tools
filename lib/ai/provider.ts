@@ -142,6 +142,20 @@ export interface ProviderConfig {
   maxOutputTokens: number | null;
 }
 
+/**
+ * How long an image job may take before we give up.
+ *
+ * Deliberately longer than `AI_TIMEOUT_MS`, which is tuned for a chat
+ * completion. Measured on xkiro with `sensenova/sensenova-u1.5-lite`: a
+ * text-to-image request took 27s once and was still unfinished at 62s another
+ * time. Reusing the chat deadline meant image tools failed on a request that
+ * would have succeeded seconds later — a timeout the visitor could do nothing
+ * about.
+ *
+ * An operator who sets a LONGER `AI_TIMEOUT_MS` still wins, hence the `max`.
+ */
+const IMAGE_JOB_TIMEOUT_MS = 240_000;
+
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -287,11 +301,27 @@ export interface AiImageRequest {
   /** "WIDTHxHEIGHT". */
   size?: string;
   signal?: AbortSignal;
+  /** Reports real stages as they happen. Absent in a non-streaming call. */
+  onStage?: (stage: AiImageStage) => void;
 }
 
 export interface AiImageEditRequest extends AiImageRequest {
   image: { mime: AiAllowedImageMime; base64: string };
 }
+
+/**
+ * A real point in an image request's life, reported by the provider as it
+ * happens.
+ *
+ * This exists so the interface can show where a request actually is instead of
+ * animating a progress bar it cannot justify. `polls` and `elapsedMs` are
+ * measured, never estimated, so a caller may display them verbatim. There is
+ * deliberately no `percent`: nobody knows how far through an image a model is.
+ */
+export type AiImageStage =
+  | { phase: "submitting" }
+  | { phase: "generating"; polls: number; elapsedMs: number }
+  | { phase: "fetching"; polls: number; elapsedMs: number };
 
 export interface AiImageResult {
   mime: string;
@@ -844,12 +874,13 @@ class OpenAiCompatibleProvider implements AiProvider {
       n: 1,
     };
     if (request.size) payload.size = request.size;
+    request.onStage?.({ phase: "submitting" });
 
     const response = await providerFetch(this.config, {
       method: "POST",
       path: "/images/generations",
       body: JSON.stringify(payload),
-      timeoutMs: this.config.timeoutMs,
+      timeoutMs: this.imageTimeoutMs(),
       ...(request.signal ? { signal: request.signal } : {}),
     });
 
@@ -862,7 +893,7 @@ class OpenAiCompatibleProvider implements AiProvider {
     // xkiro is one of them, and says so in its own error text:
     //   "use POST /v1/images/generations (asynchronous - it returns a job id;
     //    poll GET /v1/images/generations/:id for the image)"
-    return this.pollImageJob(response.payload, model, request.signal);
+    return this.pollImageJob(response.payload, model, request.signal, request.onStage);
   }
 
   /**
@@ -878,14 +909,19 @@ class OpenAiCompatibleProvider implements AiProvider {
     submitted: Record<string, unknown>,
     model: string,
     signal?: AbortSignal,
+    onStage?: (stage: AiImageStage) => void,
   ): Promise<AiImageResult> {
     const jobId = asString(submitted.id);
     if (!jobId) {
       throw new AiError("upstream", { detail: "provider accepted the job but returned no id" });
     }
 
-    const deadline = Date.now() + this.config.timeoutMs;
+    const started = Date.now();
+    // The image deadline, not the chat one: see IMAGE_JOB_TIMEOUT_MS.
+    const budgetMs = Math.max(this.config.timeoutMs, IMAGE_JOB_TIMEOUT_MS);
+    const deadline = started + budgetMs;
     const pollEveryMs = 2000;
+    let poll = 0;
 
     while (Date.now() < deadline) {
       if (signal?.aborted) {
@@ -899,10 +935,14 @@ class OpenAiCompatibleProvider implements AiProvider {
         timeoutMs: 20_000,
         ...(signal ? { signal } : {}),
       });
+      poll += 1;
 
       const status = asString(job.payload.status) ?? "processing";
 
       if (status === "succeeded" || status === "completed" || status === "success") {
+        // Real signal, not a guess: the job is done and the bytes are on the
+        // provider's CDN. The wait for them is the only part left.
+        onStage?.({ phase: "fetching", polls: poll, elapsedMs: Date.now() - started });
         const first = Array.isArray(job.payload.data) ? job.payload.data[0] : undefined;
         const url =
           typeof first === "object" && first !== null
@@ -914,6 +954,11 @@ class OpenAiCompatibleProvider implements AiProvider {
         throw new AiError("upstream", { detail: "image job succeeded with no payload" });
       }
 
+      // Still running. Reporting the poll count and elapsed time is honest
+      // because both are measured, and a caller can show real elapsed seconds
+      // instead of inventing a percentage.
+      onStage?.({ phase: "generating", polls: poll, elapsedMs: Date.now() - started });
+
       if (status === "failed" || status === "cancelled" || status === "canceled") {
         const reason =
           asString((job.payload.error as Record<string, unknown> | undefined)?.message) ??
@@ -923,7 +968,7 @@ class OpenAiCompatibleProvider implements AiProvider {
     }
 
     throw new AiError("timeout", {
-      detail: `image job ${jobId} did not finish within ${this.config.timeoutMs}ms`,
+      detail: `image job ${jobId} did not finish within ${budgetMs}ms`,
     });
   }
 
@@ -944,12 +989,13 @@ class OpenAiCompatibleProvider implements AiProvider {
       new Blob([base64ToBytes(request.image.base64)], { type: request.image.mime }),
       `input.${extension}`,
     );
+    request.onStage?.({ phase: "submitting" });
 
     const response = await providerFetch(this.config, {
       method: "POST",
       path: "/images/edits",
       formData: form,
-      timeoutMs: this.config.timeoutMs,
+      timeoutMs: this.imageTimeoutMs(),
       ...(request.signal ? { signal: request.signal } : {}),
     });
 
@@ -965,7 +1011,7 @@ class OpenAiCompatibleProvider implements AiProvider {
       return readImage(response.payload, model);
     }
 
-    return this.pollImageJob(response.payload, model, request.signal);
+    return this.pollImageJob(response.payload, model, request.signal, request.onStage);
   }
 
   async listModels(): Promise<string[]> {
@@ -1018,6 +1064,18 @@ class OpenAiCompatibleProvider implements AiProvider {
       });
     }
     return model;
+  }
+
+  /**
+   * The per-attempt timeout for an image call.
+   *
+   * Also applies to the submit POST, not just the poll loop: a provider that
+   * generates synchronously (OpenAI's `gpt-image-1`) does the whole job inside
+   * that one request, so a chat-sized timeout would abandon work the provider
+   * was about to finish.
+   */
+  private imageTimeoutMs(): number {
+    return Math.max(this.config.timeoutMs, IMAGE_JOB_TIMEOUT_MS);
   }
 }
 

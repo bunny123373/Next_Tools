@@ -15,8 +15,8 @@ import { DETAIL_CHOICES, SIZE_CHOICES, STYLE_CHOICES, type AiControl } from "./c
 const tool = getTool("ai-image-generator");
 
 const CONTROLS: readonly AiControl[] = [
-  { kind: "segmented", key: "size", label: "Canvas", default: "1024x1024", options: SIZE_CHOICES },
-  { kind: "select", key: "style", label: "Visual style", default: "photographic", options: STYLE_CHOICES },
+  { kind: "ratio", key: "size", label: "Canvas", default: "1024x1024", options: SIZE_CHOICES },
+  { kind: "style", key: "style", label: "Visual style", default: "photographic", options: STYLE_CHOICES },
   { kind: "segmented", key: "detail", label: "Detail", default: "high", options: DETAIL_CHOICES },
   {
     kind: "slider",
