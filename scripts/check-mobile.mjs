@@ -76,7 +76,7 @@ for (const [name, source] of [
   }
 }
 
-console.log("\nhorizontal overflow");
+console.log("\nhorizontal overflow (source-level)");
 // Read the `html { … }` block by brace balance. A fixed character window is
 // wrong here: the rule carries a long explanatory comment, so the property
 // being asserted on can sit well past any arbitrary cut-off.
@@ -96,15 +96,27 @@ function cssBlock(selector) {
 }
 
 const htmlRule = cssBlock("html {");
+// Strip comments first. The rule documents the removed guard by name, so a
+// naive match flags its own explanation as the thing it forbids.
+const htmlCode = htmlRule.replace(/\/\*[\s\S]*?\*\//g, "");
 check(
-  "the root clips horizontal overflow",
-  /overflow-x:\s*clip/.test(htmlRule),
-  "otherwise a too-wide child makes the whole page scroll sideways on a phone",
+  "the root has no overflow-x band-aid",
+  !/overflow-x:\s*(clip|hidden)/.test(htmlCode),
+  "a root guard hides overflow from scrollWidth instead of fixing it; check:mobile:scroll measures it",
 );
 check(
-  "the root does NOT use overflow-x: hidden",
+  "the root never uses overflow-x: hidden",
   !/overflow-x:\s*hidden/.test(htmlRule),
   "hidden makes the root a scroll container, which breaks every position: sticky descendant",
+);
+
+// The measured check in check:mobile:scroll is what actually proves this. The
+// tooltip is the element that broke it, so assert it is not laid out at rest.
+const tooltip = read("components/ui/tooltip.tsx");
+check(
+  "the tooltip bubble is not rendered while hidden",
+  /\{open \? \(/.test(tooltip) && !/\bopacity-0\b/.test(tooltip),
+  "an absolutely positioned w-max bubble contributes page width even at opacity 0 or visibility hidden",
 );
 
 // A table with a min-width wider than a 320px phone pushes the page sideways

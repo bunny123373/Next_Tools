@@ -132,21 +132,24 @@
     scroll-behavior: smooth;
 
     /*
-     * Stop the page scrolling sideways on a narrow screen.
+     * No `overflow-x` guard here, deliberately.
      *
-     * `clip`, deliberately, NOT `hidden`. `overflow: hidden` turns the element
-     * into a scroll container, which is what silently breaks every
-     * `position: sticky` descendant — the AI Chat composer depends on sticky,
-     * so that choice would trade one bug for a worse one. `clip` prevents the
-     * overflow without creating a scrollport, so sticky keeps working.
+     * There was one — `overflow-x: clip` — added as a band-aid for a page that
+     * was 22px too wide on a phone. It made the symptom disappear while leaving
+     * the cause, and worse, it made `documentElement.scrollWidth` report
+     * `clientWidth`, so the overflow became invisible to measurement. A guard
+     * that hides regressions is worth less than none when a real detector
+     * exists.
      *
-     * This is a guard, not a diagnosis: it stops the symptom wherever the
-     * offending element is, and does not identify it. Anything that should
-     * scroll horizontally for a good reason must be a child with its own
-     * `overflow-x: auto` (the code and table wrappers already do), because
-     * this rule only stops the page itself.
+     * The cause was the favourite-button tooltip on every tool card: an
+     * absolutely positioned `w-max` bubble that was laid out even while
+     * invisible, so it contributed to the page width. It is fixed at the source
+     * in `components/ui/tooltip.tsx`.
+     *
+     * `npm run check:mobile:scroll` measures it properly, in headless Chrome,
+     * across the page types at three widths. Run that instead of trusting a
+     * declaration in this file.
      */
-    overflow-x: clip;
   }
 
   body {
