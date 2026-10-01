@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Send, TriangleAlert } from "lucide-react";
 import { TOOL_CATEGORIES } from "@/lib/validations/schemas";
 import { CATEGORIES } from "@/lib/tools/categories";
+import { SITE } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/form";
 import { Notice } from "@/components/tools/states";
@@ -250,8 +251,11 @@ export function StorageWarning({ persistent }: { persistent: boolean }) {
       This deployment has no <code className="font-mono text-[12px]">TOOL_REQUESTS_ENDPOINT</code>{" "}
       configured, so requests are validated and accepted but held in memory — they will be lost
       when the server restarts. The form works; the destination is not durable yet. Email{" "}
-      <a href="mailto:hello@balu.tools" className="underline underline-offset-2">
-        hello@balu.tools
+      {/* Read from SITE rather than written out: a hardcoded address here
+          silently drifts from the one the rest of the site uses, and this one
+          had already done exactly that. */}
+      <a href={`mailto:${SITE.contactEmail}`} className="underline underline-offset-2">
+        {SITE.contactEmail}
       </a>{" "}
       instead if your request matters.
     </Notice>

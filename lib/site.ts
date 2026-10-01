@@ -31,7 +31,8 @@ export const SITE = {
   locale: "en",
   /** Shown in the footer. */
   copyrightYear: new Date().getFullYear(),
-  contactEmail: process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "hello@balu.tools",
+  contactEmail:
+    process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "steveharringtone999@gmail.com",
   /** Placeholders are intentional — replace with real profiles before launch. */
   social: {
     github: process.env.NEXT_PUBLIC_SOCIAL_GITHUB ?? "https://github.com/balu-tools",

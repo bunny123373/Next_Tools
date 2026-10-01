@@ -38,7 +38,7 @@ const escaped = escapeHtml("<script>alert(1)</script>");
 // &lt;script&gt;alert(1)&lt;/script&gt;
 \`\`\`
 
-Read more at [balu.tools](https://balu.tools) or mail <hello@balu.tools>.
+Read more at [balu.tools](https://balu.tools) or mail <steveharringtone999@gmail.com>.
 
 - [x] Escapes raw HTML
 - [ ] Adds reference-style links
