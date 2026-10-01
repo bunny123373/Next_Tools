@@ -375,7 +375,13 @@ function ChatInterface({ tool }: { tool: Tool }) {
                 <div
                   className={cn(
                     "rounded-[26px] border bg-[var(--surface-card)] transition-colors",
-                    "focus-within:border-brand-500",
+                    // Focus is shown with a NEUTRAL border, never the brand colour. Red is
+                    // the brand AND the error colour here, so a red outline on
+                    // the composer reads as "this failed" — and on a phone it
+                    // fires the instant you tap the field. An earlier fix
+                    // cancelled the red ring on the inner input but left this
+                    // border red, so the red box survived it.
+                    "focus-within:border-[var(--text-muted)]",
                     overBudget ? "border-amber-500/50" : "border-[var(--surface-line)]",
                   )}
                 >

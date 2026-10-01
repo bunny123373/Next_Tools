@@ -189,8 +189,18 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold text-[var(--text-ink)]">Assistant</p>
-          <p className="truncate text-[11px] text-[var(--text-muted)]">
-            {busy ? "Writing…" : "Third-party model · this chat is not saved"}
+          <p className="text-[11px] leading-snug text-[var(--text-muted)]">
+            {/* Split rather than one truncated string: at 320px the combined
+                line was cut to "Third-party model · this ch…". */}
+            {busy ? (
+              "Writing…"
+            ) : (
+              <>
+                Third-party model
+                <br />
+                This chat is not saved
+              </>
+            )}
           </p>
         </div>
         <button
@@ -290,7 +300,13 @@ export function AgentPanel({ onClose }: { onClose: () => void }) {
 
       {/* Composer -------------------------------------------------------- */}
       <div className="border-t border-[var(--surface-line)] p-3">
-        <div className="rounded-[22px] border border-[var(--surface-line)] focus-within:border-brand-500">
+        {/* Focus is shown with a NEUTRAL border, never the brand colour. On this
+            palette red is the brand AND the error colour, so a red outline on
+            the composer reads as "this failed" — and on a phone it fires the
+            moment you tap the field, which is exactly when you are typing.
+            An earlier fix cancelled the red ring on the inner input but left
+            this border red, so the "glitch red box" survived it. */}
+        <div className="rounded-[22px] border border-[var(--surface-line)] transition-colors focus-within:border-[var(--text-muted)]">
           <label htmlFor="agent-input" className="sr-only">
             Your message
           </label>

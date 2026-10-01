@@ -68,3 +68,6 @@ lib/**/*.js
 
 # temporary tooling output
 .lint-report.json
+
+# screenshots written by the headless-Chrome checks
+tmp/
