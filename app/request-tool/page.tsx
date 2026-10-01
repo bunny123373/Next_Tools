@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { PageShell, Prose, Callout } from "@/components/layout/PageShell";
 import { RequestToolForm, StorageWarning } from "@/components/forms/RequestToolForm";
 import { describeStore } from "@/lib/storage";
+import { isMailConfigured } from "@/lib/mail";
 import { clampDescription } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -30,7 +31,7 @@ export default function RequestToolPage() {
           />
         }
       >
-        <StorageWarning persistent={store.persistent} />
+        <StorageWarning persistent={store.persistent} mailed={isMailConfigured()} />
 
         <div className="mt-5 rounded-[14px] border border-[var(--surface-line)] bg-[var(--surface-card)] p-5 sm:p-6">
           <RequestToolForm />

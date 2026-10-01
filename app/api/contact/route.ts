@@ -2,6 +2,7 @@ import { apiError, apiOk, parseJson, withErrorHandling } from "@/lib/api/respond
 import { LIMITS, rateLimit, rateLimitHeaders } from "@/lib/api/rate-limit";
 import { contactSchema } from "@/lib/validations/schemas";
 import { getStore, type ContactRecord } from "@/lib/storage";
+import { contactMessage, sendMail } from "@/lib/mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,9 +11,10 @@ export const dynamic = "force-dynamic";
  * POST /api/contact — deliver a contact form submission.
  *
  * Where it goes depends on configuration:
+ *   - Mail configured (`RESEND_API_KEY` + `MAIL_FROM`) → emailed to the operator.
  *   - `CONTACT_FORM_ENDPOINT` set  → forwarded to that service.
  *   - `TOOL_REQUESTS_ENDPOINT` set → stored in the same backend as tool requests.
- *   - Neither set                  → held in memory, and the response says so.
+ *   - None of the above             → held in memory, and the response says so.
  *
  * The client is always told which of these happened, because silently dropping
  * a contact message is worse than admitting we cannot deliver it yet.
@@ -43,6 +45,16 @@ export const POST = withErrorHandling(async (request: Request) => {
     ...(input.context ? { context: input.context } : {}),
     createdAt: new Date().toISOString(),
   };
+
+  // Mail is a notification, not the system of record. The record is saved
+  // either way, so a mail failure must not fail the submission — losing a
+  // contact message because a provider was briefly down would be worse than
+  // not hearing about it by email, since /admin still holds it.
+  const mail = await sendMail({
+    ...contactMessage(record),
+    // Answering the sender by hitting reply is the whole point.
+    replyTo: record.email,
+  });
 
   try {
     const endpoint = process.env.CONTACT_FORM_ENDPOINT;
@@ -76,19 +88,26 @@ export const POST = withErrorHandling(async (request: Request) => {
     );
   }
 
-  const destination = process.env.CONTACT_FORM_ENDPOINT
+  const stored = process.env.CONTACT_FORM_ENDPOINT
     ? "contact-endpoint"
     : process.env.TOOL_REQUESTS_ENDPOINT
       ? "tool-requests-store"
       : "memory";
 
   return apiOk(
-    { delivered: true, destination },
+    // `destination` says where the MESSAGE went, which is what the visitor
+    // cares about. It used to be derived from the store alone, so a submission
+    // that reached nobody by email still reported "delivered".
+    {
+      delivered: mail === "sent" || stored !== "memory",
+      mail,
+      destination: mail === "sent" ? "email" : stored,
+    },
     {
       status: 201,
       headers: {
         ...rateLimitHeaders(limit),
-        ...(destination === "memory" ? { "x-storage": "ephemeral" } : {}),
+        ...(mail === "sent" ? {} : { "x-storage": "ephemeral" }),
       },
     },
   );

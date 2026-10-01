@@ -14,10 +14,17 @@ function requiredUrl(value: string | undefined, fallback: string): string {
   return fallback;
 }
 
-/** Canonical origin, used for metadata, sitemap, robots and share links. */
+/**
+ * Canonical origin, used for metadata, sitemap, robots and share links.
+ *
+ * The fallback is the real deployment. It matters: Next.js resolves a relative
+ * metadataBase against this, so a wrong value puts canonical tags, the sitemap
+ * and Open Graph URLs on a domain the site is not served from — which search
+ * engines then index in preference to the real one.
+ */
 export const SITE_URL = requiredUrl(
   process.env.NEXT_PUBLIC_SITE_URL,
-  "https://balu.tools",
+  "https://101plus.vercel.app",
 );
 
 export const SITE = {

@@ -5,6 +5,7 @@ import { LIMITS, rateLimit, rateLimitHeaders } from "@/lib/api/rate-limit";
 import { isAdminRequest } from "@/lib/admin/auth";
 import { toolRequestSchema } from "@/lib/validations/schemas";
 import { getStore, type ToolRequestRecord } from "@/lib/storage";
+import { sendMail, toolRequestMessage } from "@/lib/mail";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +72,25 @@ export const POST = withErrorHandling(async (request: Request) => {
     );
   }
 
-  return apiOk({ id: record.id, status: record.status }, { status: 201 });
+  // Saved first, then mailed. The order matters: if the mail provider is down
+  // the request is still recorded and visible in /admin, which beats the
+  // alternative of a form that rejects a valid submission because someone
+  // else's inbox had a bad minute.
+  const mail = await sendMail({
+    ...toolRequestMessage(record),
+    ...(record.email ? { replyTo: record.email } : {}),
+  });
+
+  return apiOk(
+    {
+      id: record.id,
+      status: record.status,
+      // So the form can say where it went rather than implying it was read.
+      mail,
+      stored: getStore().kind,
+    },
+    { status: 201, headers: rateLimitHeaders(limit) },
+  );
 });
 
 /** GET /api/requests — list requests. Admin only. */

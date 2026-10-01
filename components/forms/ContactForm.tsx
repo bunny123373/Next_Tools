@@ -42,7 +42,9 @@ export function ContactForm() {
       const payload = (await response.json()) as {
         ok: boolean;
         destination?: string;
-        error?: { message: string; fields?: FieldErrors };
+        /** Where the message actually went, which may differ from the store. */
+        mail?: "sent" | "not-configured" | "failed";
+        error?: { message?: string; fields?: FieldErrors };
       };
 
       if (!response.ok || !payload.ok) {
@@ -52,8 +54,11 @@ export function ContactForm() {
         return;
       }
 
-      // Be honest about where the message went.
-      if (payload.destination === "memory") setEphemeral(true);
+      // Be honest about where the message went. `mail === "sent"` means a human
+      // was emailed; the store on its own only means it is sitting somewhere.
+      if (payload.mail !== "sent" && payload.destination === "memory") {
+        setEphemeral(true);
+      }
       setStatus("success");
       toast.success("Message sent", "Thanks for getting in touch.");
     } catch {

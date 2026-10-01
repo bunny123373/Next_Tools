@@ -177,6 +177,23 @@ contents, never the text you typed.
 **No cookies. No ad or analytics scripts.** Anonymous usage counters are off unless
 `NEXT_PUBLIC_ANALYTICS_ENDPOINT` is set, and are toggleable from `/dashboard`.
 
+### Contact and tool-request email
+
+Both forms need somewhere to send what a visitor typed. Set `RESEND_API_KEY` and
+`MAIL_FROM` and they are emailed to `MAIL_TO`. Resend's HTTP API is called directly, so
+there is **no SDK and no extra dependency**; the free tier is 3,000 emails a month.
+
+Two deliberate properties:
+
+- **A mail failure never fails a submission.** The record is saved first, so a provider
+  having a bad minute does not reject a valid form. It is visible in `/admin` either way.
+- **The response says where it went.** `mail` is `sent`, `not-configured` or `failed`, and
+  the page's warning only appears when *neither* mail nor a storage backend exists. A
+  submission that reached nobody used to still report `delivered: true`.
+
+Without those variables the forms still work — they are held in memory and lost on
+restart, and the page says exactly that.
+
 ---
 
 ## 🔧 Environment variables
@@ -187,6 +204,9 @@ variable** — those are inlined into the browser bundle.
 | Variable | Enables |
 | :--- | :--- |
 | `NEXT_PUBLIC_SITE_URL` | Canonical origin for metadata, sitemap, share links |
+| `RESEND_API_KEY` | **Delivers contact-form and tool-request email** |
+| `MAIL_FROM` | The verified sender those emails come from |
+| `MAIL_TO` | Where they are delivered (defaults to the contact email) |
 | `AI_PROVIDER` | Provider id (default `openai-compatible`) |
 | `AI_API_KEY` | Every tool in the AI category |
 | `AI_BASE_URL` | Any OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, Ollama…) |

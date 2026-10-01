@@ -243,14 +243,22 @@ export function RequestToolForm() {
   );
 }
 
-/** Shown when no persistence backend is configured. */
-export function StorageWarning({ persistent }: { persistent: boolean }) {
-  if (persistent) return null;
+/**
+ * Shown when a request would not reach anyone.
+ *
+ * `persistent` means the store is durable; `mailed` means a human is emailed.
+ * The warning is only worth showing when BOTH are missing — with mail
+ * configured the request arrives by email even though the in-memory copy is
+ * still ephemeral, and telling a visitor "this will be lost" when it is not
+ * would be worse than saying nothing.
+ */
+export function StorageWarning({ persistent, mailed }: { persistent: boolean; mailed: boolean }) {
+  if (persistent || mailed) return null;
   return (
-    <Notice tone="warning" title="Submissions are not being persisted yet.">
-      This deployment has no <code className="font-mono text-[12px]">TOOL_REQUESTS_ENDPOINT</code>{" "}
-      configured, so requests are validated and accepted but held in memory — they will be lost
-      when the server restarts. The form works; the destination is not durable yet. Email{" "}
+    <Notice tone="warning" title="Requests are not being delivered yet.">
+      This deployment has neither mail nor a storage backend configured, so requests are
+      validated and accepted but then held in memory — they are lost when the server restarts.
+      The form works; nothing durable is behind it yet. Email{" "}
       {/* Read from SITE rather than written out: a hardcoded address here
           silently drifts from the one the rest of the site uses, and this one
           had already done exactly that. */}
