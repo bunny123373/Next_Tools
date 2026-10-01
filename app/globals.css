@@ -130,6 +130,23 @@
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
+
+    /*
+     * Stop the page scrolling sideways on a narrow screen.
+     *
+     * `clip`, deliberately, NOT `hidden`. `overflow: hidden` turns the element
+     * into a scroll container, which is what silently breaks every
+     * `position: sticky` descendant — the AI Chat composer depends on sticky,
+     * so that choice would trade one bug for a worse one. `clip` prevents the
+     * overflow without creating a scrollport, so sticky keeps working.
+     *
+     * This is a guard, not a diagnosis: it stops the symptom wherever the
+     * offending element is, and does not identify it. Anything that should
+     * scroll horizontally for a good reason must be a child with its own
+     * `overflow-x: auto` (the code and table wrappers already do), because
+     * this rule only stops the page itself.
+     */
+    overflow-x: clip;
   }
 
   body {

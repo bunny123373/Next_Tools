@@ -76,6 +76,58 @@ for (const [name, source] of [
   }
 }
 
+console.log("\nhorizontal overflow");
+// Read the `html { … }` block by brace balance. A fixed character window is
+// wrong here: the rule carries a long explanatory comment, so the property
+// being asserted on can sit well past any arbitrary cut-off.
+function cssBlock(selector) {
+  const start = css.indexOf(selector);
+  if (start === -1) return "";
+  const open = css.indexOf("{", start);
+  let depth = 0;
+  for (let i = open; i < css.length; i += 1) {
+    if (css[i] === "{") depth += 1;
+    else if (css[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return css.slice(open, i + 1);
+    }
+  }
+  return css.slice(open, open + 2000);
+}
+
+const htmlRule = cssBlock("html {");
+check(
+  "the root clips horizontal overflow",
+  /overflow-x:\s*clip/.test(htmlRule),
+  "otherwise a too-wide child makes the whole page scroll sideways on a phone",
+);
+check(
+  "the root does NOT use overflow-x: hidden",
+  !/overflow-x:\s*hidden/.test(htmlRule),
+  "hidden makes the root a scroll container, which breaks every position: sticky descendant",
+);
+
+// A table with a min-width wider than a 320px phone pushes the page sideways
+// unless something gives it its own horizontal scroll. Check each one is wrapped.
+const tableFiles = [
+  "app/admin/settings/page.tsx",
+  "app/admin/tools/page.tsx",
+  "app/api-docs/page.tsx",
+];
+for (const file of tableFiles) {
+  const source = read(file);
+  const lines = source.split("\n");
+  const unwrapped = lines
+    .map((line, i) => ({ line, i }))
+    .filter(({ line }) => /min-w-\[\d{3}px\]/.test(line))
+    .filter(({ i }) => !/overflow-x-auto/.test(lines[i - 1] ?? ""));
+  check(
+    `${file}: every min-w table can scroll on its own`,
+    unwrapped.length === 0,
+    unwrapped.length ? `line ${unwrapped[0].i + 1} has no overflow-x-auto wrapper` : "",
+  );
+}
+
 console.log("\ncomposer auto-grow ceiling");
 for (const [name, source, rows] of [
   ["bot panel", panel, 6],
