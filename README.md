@@ -204,6 +204,7 @@ variable** — those are inlined into the browser bundle.
 | Variable | Enables |
 | :--- | :--- |
 | `NEXT_PUBLIC_SITE_URL` | Canonical origin for metadata, sitemap, share links |
+| `DATABASE_URL` | **Persists contact messages and tool requests** (MongoDB) |
 | `RESEND_API_KEY` | **Delivers contact-form and tool-request email** |
 | `MAIL_FROM` | The verified sender those emails come from |
 | `MAIL_TO` | Where they are delivered (defaults to the contact email) |
@@ -219,7 +220,7 @@ variable** — those are inlined into the browser bundle.
 | `CONTACT_FORM_ENDPOINT` | Where contact messages are delivered |
 | `ADMIN_SECRET` | Unlocks `/admin` |
 | `AUTH_SECRET` | Session-signed admin access |
-| `DATABASE_URL` | Favourites/history sync, usage analytics (adapter not shipped) |
+| `TOOL_REQUESTS_ENDPOINT` | Forwards submissions to your own service instead of MongoDB |
 | `STRIPE_SECRET_KEY` | Subscriptions (provider adapter not shipped) |
 | `NEXT_PUBLIC_ANALYTICS_ENDPOINT` | Anonymous aggregated usage counters |
 | `NEXT_PUBLIC_CROSS_ORIGIN_ISOLATED` | COOP/COEP headers, only for ffmpeg.wasm |

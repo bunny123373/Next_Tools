@@ -1,52 +1,27 @@
 import "server-only";
 
+import type { ContactRecord, Store, ToolRequestRecord } from "./types";
+import { MongoStore } from "./mongo";
+
 /**
  * Storage adapter.
  *
  * Deliberately abstract so the platform runs with zero configuration while
- * still being honest about where submissions go. There are no database
- * credentials in this repository and there never will be — the operator supplies
- * an endpoint, and we POST to it.
+ * still being honest about where submissions go.
  *
- *   - No `TOOL_REQUESTS_ENDPOINT`  → in-memory (dev). Data is lost on restart.
- *   - `TOOL_REQUESTS_ENDPOINT` set → forwarded to that service.
- *   - `DATABASE_URL` set            → see the note in resolveStore(); a real
- *                                     adapter should be implemented here.
+ *   - `DATABASE_URL` set            → MongoDB. This is the real, durable one.
+ *   - `TOOL_REQUESTS_ENDPOINT` set → forwarded to an operator's HTTP service.
+ *   - Neither                     → in-memory. Data is lost on restart, and
+ *                                   /admin and /api/health both say so.
  *
- * Adding a database means writing one class below. Nothing else changes.
+ * MongoDB wins when both are present: a database is the better answer than
+ * posting JSON at an endpoint, and an operator who sets both almost certainly
+ * meant the database.
+ *
+ * The connection string is never logged and never returned by describeStore().
  */
 
-export interface ToolRequestRecord {
-  id: string;
-  toolName: string;
-  category: string;
-  description: string;
-  reason?: string;
-  email?: string;
-  createdAt: string;
-  status: "pending" | "planned" | "completed";
-}
-
-export interface ContactRecord {
-  id: string;
-  name: string;
-  email: string;
-  message: string;
-  context?: string;
-  createdAt: string;
-}
-
-export interface Store {
-  readonly kind: "memory" | "http";
-  saveToolRequest(record: ToolRequestRecord): Promise<void>;
-  listToolRequests(): Promise<ToolRequestRecord[]>;
-  updateToolRequestStatus(
-    id: string,
-    status: ToolRequestRecord["status"],
-  ): Promise<ToolRequestRecord | null>;
-  deleteToolRequest(id: string): Promise<boolean>;
-  saveContact(record: ContactRecord): Promise<void>;
-}
+export type { ContactRecord, Store, ToolRequestRecord } from "./types";
 
 /* ------------------------------------------------------------------ */
 /*  In-memory (development / single instance, no configuration)         */
@@ -156,14 +131,21 @@ let cached: Store | null = null;
 export function getStore(): Store {
   if (cached) return cached;
 
+  const uri = process.env.DATABASE_URL;
+  if (uri) {
+    cached = new MongoStore(uri);
+    return cached;
+  }
+
   const endpoint = process.env.TOOL_REQUESTS_ENDPOINT;
   if (endpoint) {
     cached = new HttpStore(endpoint, process.env.TOOL_REQUESTS_TOKEN);
   } else {
     if (process.env.NODE_ENV === "production") {
       console.warn(
-        "[store] TOOL_REQUESTS_ENDPOINT is not set. Submissions are being held in memory and " +
-          "will be lost when the process restarts. Set it before going live.",
+        "[store] Neither DATABASE_URL nor TOOL_REQUESTS_ENDPOINT is set. Submissions are being " +
+          "held in memory and will be lost when the process restarts. Set DATABASE_URL before " +
+          "going live.",
       );
     }
     cached = new MemoryStore();
@@ -172,21 +154,24 @@ export function getStore(): Store {
   return cached;
 }
 
-/** Describes the active backend, for /admin/settings. No secrets. */
+/**
+ * Describes the active backend, for /admin/settings and /api/health.
+ *
+ * Presence only. A connection string is a credential, so nothing here or in any
+ * caller may include one — `describeStore()` is returned by a public endpoint.
+ */
 export function describeStore(): {
   kind: Store["kind"];
   persistent: boolean;
   hint: string;
 } {
   const kind = getStore().kind;
-  return {
-    kind,
-    persistent: kind === "http",
-    hint:
-      kind === "http"
-        ? "Submissions are forwarded to the configured endpoint and persist there."
-        : "Submissions are held in memory. Set TOOL_REQUESTS_ENDPOINT to persist them.",
+  const hints: Record<Store["kind"], string> = {
+    mongo: "Submissions are stored in MongoDB and persist.",
+    http: "Submissions are forwarded to the configured endpoint and persist there.",
+    memory: "Submissions are held in memory and lost on restart. Set DATABASE_URL.",
   };
+  return { kind, persistent: kind !== "memory", hint: hints[kind] };
 }
 
 /** Test helper. */

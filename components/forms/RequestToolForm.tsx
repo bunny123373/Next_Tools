@@ -256,9 +256,9 @@ export function StorageWarning({ persistent, mailed }: { persistent: boolean; ma
   if (persistent || mailed) return null;
   return (
     <Notice tone="warning" title="Requests are not being delivered yet.">
-      This deployment has neither mail nor a storage backend configured, so requests are
-      validated and accepted but then held in memory — they are lost when the server restarts.
-      The form works; nothing durable is behind it yet. Email{" "}
+      This deployment has neither a database nor mail configured, so requests are validated and
+      accepted but then held in memory — they are lost when the server restarts. The form works;
+      nothing durable is behind it yet. Email{" "}
       {/* Read from SITE rather than written out: a hardcoded address here
           silently drifts from the one the rest of the site uses, and this one
           had already done exactly that. */}
