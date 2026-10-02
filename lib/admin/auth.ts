@@ -65,7 +65,8 @@ export async function createAdminSession(): Promise<void> {
   const secret = process.env.AUTH_SECRET;
   if (!secret) return;
   const store = await cookies();
-  store.set(SESSION_COOKIE, await sign(String(Date.now()), secret), {
+  const issued = String(Date.now());
+  store.set(SESSION_COOKIE, `${issued}.${await sign(issued, secret)}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -86,21 +87,26 @@ async function hasValidSession(): Promise<boolean> {
   const value = store.get(SESSION_COOKIE)?.value;
   if (!value) return false;
   /*
-   * The cookie IS the signature, and the thing that was signed is a timestamp.
-   * So re-signing `value` reproduces it exactly.
+   * The cookie is `<issuedAt>.<signature>`, and verification re-signs the part
+   * before the dot and compares that against the part after it.
    *
-   * This used to read `sign(value.split(".")[0] ?? "", secret)`, which assumed
-   * the cookie was `payload.signature`. createAdminSession has always written a
-   * bare signature with no dot in it, so the split returned the entire string
-   * and the comparison could never succeed. The effect was that signing in
-   * returned `signedIn: true`, set a cookie, and then every subsequent admin
-   * request came back 401 — an admin area that could never actually be used.
+   * The bug this replaces was in the writer, not here. createAdminSession wrote
+   * a bare signature with no dot, so the split returned the whole string and
+   * the comparison reduced to HMAC(HMAC(t)) against HMAC(t) -- false for every
+   * login, permanently. Signing in returned `signedIn: true` and set a cookie
+   * that no request could then use, so /admin was unreachable in session mode.
    *
-   * What made it hard to see is that the failure looked exactly like a wrong
-   * secret: both return 401 with no detail. Token mode never reached this
-   * function, so setting ADMIN_SECRET instead appeared to fix it.
+   * An intermediate attempt "fixed" it by re-signing the whole cookie value
+   * instead, which was wrong: that asks whether `value === sign(value)`, and no
+   * signature satisfies that. It has to be payload and signature.
+   *
+   * What kept this invisible is that both failure modes are a bare 401 with no
+   * detail, so a broken verifier looks exactly like a wrong password, and token
+   * mode never calls this function at all.
    */
-  return safeEqual(value, await sign(value, secret));
+  const [issued, signature] = value.split(".");
+  if (!issued || !signature) return false;
+  return safeEqual(signature, await sign(issued, secret));
 }
 
 /**
