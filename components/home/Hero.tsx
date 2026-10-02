@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, LayoutGrid } from "lucide-react";
 import { PLATFORM_STATS } from "@/lib/tools/registry";
@@ -26,6 +27,35 @@ export function Hero() {
 
       <div className="relative mx-auto max-w-[1400px] px-4 pb-14 pt-16 sm:px-6 sm:pb-16 sm:pt-24 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
+          {/*
+            The Balu Tools mark, as a banner above the headline.
+
+            Served through next/image, and deliberately not a plain <img>: the
+            source is a 1.1 MB 2172x724 PNG, and the optimiser sends a
+            right-sized, compressed variant instead. A 336px-wide slot does not
+            justify a 2.6-megapixel download.
+
+            width/height declare the real 3:1 ratio so the browser reserves the
+            correct box before the bytes arrive — without that the headline below
+            jumps as the image lands. `h-*` with `w-auto` scales it from the
+            intrinsic ratio rather than distorting it.
+
+            `priority` because this sits above the fold and is the largest paint
+            on the page; deferring it would trade a visible delay for a
+            bandwidth saving that does not matter for one image.
+
+            Alt text is empty: the headline and the <title> already name the
+            site, so a second copy would be read out twice for no gain.
+          */}
+          <Image
+            src="/hearder.png"
+            alt=""
+            width={336}
+            height={112}
+            priority
+            className="mx-auto mb-8 h-20 w-auto sm:mb-10 sm:h-28 lg:h-36"
+          />
+
           <span className="inline-flex items-center gap-2 rounded-full border border-[var(--surface-line)] bg-[var(--surface-card)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">
             <span aria-hidden="true" className="size-1.5 rounded-full bg-brand-500" />
             Free online tools

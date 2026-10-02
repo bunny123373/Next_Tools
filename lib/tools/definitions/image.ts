@@ -949,6 +949,73 @@ export const IMAGE_TOOLS: readonly Tool[] = [
     related: ["image-compressor", "image-converter", "image-resizer", "color-extractor"],
   },
   {
+    id: "image-metadata-remover",
+    name: "Metadata Remover",
+    slug: "metadata-remover",
+    category: "image",
+    description:
+      "Strip EXIF, GPS, IPTC and XMP data from an image by re-encoding it. See exactly which tags were removed, and keep your privacy before posting.",
+    intro:
+      "Remove the hidden data a photo carries: where and when it was taken, which camera made it, its serial number, and any editing software recorded along the way. The result is a clean copy with no embedded metadata left in it.",
+    icon: "Eraser",
+    keywords: [
+      "exif remover",
+      "metadata remover",
+      "strip exif data",
+      "remove gps from photo",
+      "remove metadata from image",
+      "clean jpeg exif",
+      "photo privacy",
+      "remove geotag",
+    ],
+    route: "/tools/image/metadata-remover",
+    processing: "local",
+    status: "stable",
+    addedOn: "2026-10-01",
+    actionLabel: "Remove metadata",
+    features: [
+      "Clears EXIF, GPS, IPTC, XMP and the embedded thumbnail in one pass",
+      "Lists every tag that was found so you know what is being removed, not just that something was",
+      "The clean copy is produced entirely on your device — the original is never uploaded anywhere",
+      "Warns when re-encoding costs quality, and keeps the original format and dimensions",
+      "Handles JPEG, PNG, WebP and anything else your browser can decode",
+    ],
+    howItWorks: [
+      "Your image is read in the browser and its metadata blocks are parsed and listed",
+      "The pixels are decoded and re-encoded to a fresh file that carries no metadata",
+      "The result is compared against the original and the removed tags are shown to you",
+      "Download the clean copy — or keep the original if you need the metadata",
+    ],
+    faq: [
+      {
+        question: "What does this actually remove?",
+        answer:
+          "The hidden data stored alongside the picture rather than in it: EXIF tags (camera, lens, exposure, timestamps, serial number), GPS coordinates, IPTC caption and credit fields, XMP data from editing software, and the thumbnail preview some cameras embed. The visible pixels are not touched.",
+      },
+      {
+        question: "Will removing metadata lower the image quality?",
+        answer:
+          "It can, and only for formats that are lossy. JPEG has to be re-compressed, so the file is very slightly softer than the original. You choose the quality, and the tool shows you the size difference so you can see what the trade cost. PNG is lossless, so stripping data from a PNG does not degrade it.",
+      },
+      {
+        question: "Is my photo uploaded to remove the data?",
+        answer:
+          "No. The whole process runs in your browser: the file is read, re-encoded and handed back to you without it ever being sent to a server. That is worth being precise about here, because if you use an online stripper, the coordinates you are trying to remove are sent to that service along with the file.",
+      },
+      {
+        question: "Why does GPS matter if it is my own photo?",
+        answer:
+          "Because a photo of your home, your child or a document can reveal where you live or work, and phone cameras store that by default. Social platforms and messaging apps do not always strip it. Removing GPS before you post is the simplest way to publish a picture without publishing your address.",
+      },
+      {
+        question: "Is there a way to strip it without re-encoding at all?",
+        answer:
+          "For JPEG you can delete the metadata block from the file directly and leave the compressed image data untouched, which loses nothing. Not every browser can write a valid JPEG that way, so this tool takes the reliable route — decode and re-encode — and tells you the quality cost. Keep the original file if you need to preserve the exact compressed bytes.",
+      },
+    ],
+    related: ["image-metadata", "image-compressor", "image-converter", "image-resizer"],
+  },
+  {
     id: "color-extractor",
     name: "Color Extractor",
     slug: "color-extractor",

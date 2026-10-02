@@ -62,6 +62,7 @@ export type ToolIconName =
   | "Diff"
   | "Dices"
   | "Download"
+  | "Eraser"
   | "Eye"
   | "EyeOff"
   | "FileArchive"

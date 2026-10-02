@@ -1396,6 +1396,15 @@ function readTagValue(
     case 4:
       return { kind: "number", value: u32(base) };
     case 5:
+      // A RATIONAL is 8 bytes, so a GPS coordinate arrives as three of them
+      // under one tag. Returning only the first would silently drop the minutes
+      // and seconds and land the reader in the wrong country, so an array of
+      // them is reported as one. Single-value tags are unaffected.
+      if (count > 1) {
+        const values: number[] = [];
+        for (let i = 0; i < count; i += 1) values.push(ratio(base + i * 8));
+        return { kind: "rationals", values };
+      }
       return { kind: "rational", value: ratio(base) };
     case 10: {
       const values: number[] = [];
@@ -1841,5 +1850,186 @@ export async function readImageMetadata(file: Blob): Promise<ImageMetadata> {
     decoded,
     decodeError,
     notes,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* metadata removal                                                            */
+/* -------------------------------------------------------------------------- */
+
+/** One item of metadata that was present in the input and is absent from the output. */
+export interface RemovedTag {
+  /** The container it lived in, e.g. "EXIF", "GPS", "IPTC", "XMP", "PNG chunk". */
+  source: string;
+  /** The tag name, or a summary line when the whole block was removed. */
+  label: string;
+  /** The value when it is short and safe to show; omitted for long blocks. */
+  value?: string;
+}
+
+/**
+ * What stripping did, so the result can be reported honestly rather than
+ * described as "done".
+ */
+export interface StripMetadataResult extends EncodedImage {
+  /** Filename to save the clean copy under. */
+  filename: string;
+  /** Metadata that was found in the input and is gone from the output. */
+  removed: RemovedTag[];
+  /** True when the input had no metadata to begin with. */
+  wasAlreadyClean: boolean;
+  /**
+   * True when re-encoding could not have changed the visible pixels but the
+   * file format is lossy anyway, i.e. quality was traded for the removal.
+   */
+  lossy: boolean;
+  /** Byte size before and after, for the honest cost of the operation. */
+  beforeBytes: number;
+  afterBytes: number;
+  /** Dimensions, which stripping must never change. */
+  width: number;
+  height: number;
+  /** True when a decode round-trip proved the output really is clean. */
+  verified: boolean;
+}
+
+/**
+ * Enumerates the metadata actually present, as the individual tags a user would
+ * recognise.
+ *
+ * Derived from `readImageMetadata` rather than re-parsing, so the remover and
+ * the viewer can never disagree about what a file contains.
+ */
+function enumerateRemoved(meta: ImageMetadata): RemovedTag[] {
+  const removed: RemovedTag[] = [];
+
+  if (meta.exif) {
+    const exif = meta.exif;
+    const field = (label: string, value: string | null | undefined) => {
+      if (value) removed.push({ source: "EXIF", label, value });
+    };
+
+    field("Camera make", exif.make);
+    field("Camera model", exif.model);
+    field("Lens / focal length", exif.focalLength);
+    field("Captured at", exif.dateTimeOriginal);
+    field("Exposure", exif.exposureTime);
+    field("Aperture", exif.fNumber);
+    field("ISO", exif.iso !== null ? String(exif.iso) : null);
+    field("Editing software", exif.software);
+    if (exif.orientation !== null) {
+      removed.push({ source: "EXIF", label: "Orientation", value: String(exif.orientation) });
+    }
+    if (exif.gps) {
+      removed.push({
+        source: "GPS",
+        label: "Coordinates",
+        value: `${exif.gps.latitude.toFixed(6)}, ${exif.gps.longitude.toFixed(6)}`,
+      });
+    } else if (exif.gpsPresent) {
+      removed.push({ source: "GPS", label: "Coordinates", value: "block present, incomplete" });
+    }
+
+    // Whatever was not named above is still leaving the file, and the count is
+    // known, so say so rather than implying those were the only tags.
+    const named = removed.filter((tag) => tag.source === "EXIF").length;
+    if (exif.tagCount > named) {
+      removed.push({
+        source: "EXIF",
+        label: "Other EXIF tags",
+        value: `${exif.tagCount - named} more`,
+      });
+    }
+  }
+
+  if (meta.png) {
+    if (meta.png.hasExif) {
+      removed.push({ source: "PNG chunk", label: "eXIf", value: "embedded EXIF block" });
+    }
+    for (const entry of meta.png.text) {
+      removed.push({ source: "PNG chunk", label: `tEXt · ${entry.key}`, value: entry.value });
+    }
+  }
+
+  if (meta.webp) {
+    if (meta.webp.hasExif) removed.push({ source: "WebP chunk", label: "EXIF" });
+    if (meta.webp.hasXmp) removed.push({ source: "WebP chunk", label: "XMP" });
+    if (meta.webp.hasIcc) {
+      // An ICC profile is not metadata in the privacy sense - without it colours
+      // shift on displays that do not share the profile. Reported, not removed.
+      removed.push({ source: "WebP chunk", label: "ICC colour profile (kept, not metadata)" });
+    }
+  }
+
+  return removed;
+}
+
+export interface StripOptions {
+  /** Output format. Defaults to the input format. */
+  type?: OutputMime | string;
+  /** 0-1. Ignored for lossless formats. */
+  quality?: number;
+  /**
+   * Draw this behind the image. Required for JPEG when the source has
+   * transparency, otherwise the transparent areas become black.
+   */
+  background?: string | null;
+}
+
+/**
+ * Produces a copy of the image carrying no metadata.
+ *
+ * The mechanism is a decode and re-encode. The encoder is given only pixels, so
+ * there is nowhere for a metadata block to survive - which is a stronger
+ * guarantee than deleting known segments: anything not yet anticipated by this
+ * parser is dropped too, because it was never handed to the encoder at all.
+ *
+ * Two honest consequences, both reported to the caller rather than hidden:
+ *
+ *  - JPEG re-encoding is lossy. The file is marginally softer. PNG is not.
+ *  - Orientation is baked into the pixels, so a rotated photo comes out the way
+ *    it looked rather than the way it was stored. The dimensions therefore match
+ *    what the viewer showed, which is correct but is not always what the header
+ *    said.
+ *
+ * The output is verified by reading its metadata back. Claiming success without
+ * checking would make the whole tool a guess.
+ */
+export async function stripMetadata(
+  file: Blob,
+  name: string,
+  options: StripOptions = {},
+): Promise<StripMetadataResult> {
+  const before = await readImageMetadata(file);
+  const removed = enumerateRemoved(before);
+
+  const type = (options.type ?? before.mimeType) as string;
+  const isLossless = type === "image/png" || type === "image/webp";
+
+  const encoded = await reencode(file, {
+    type,
+    quality: options.quality ?? 0.92,
+    background: options.background ?? "#FFFFFF",
+  });
+
+  const after = await readImageMetadata(encoded.blob);
+  const leftover = enumerateRemoved(after);
+  const verified = leftover.length === 0 || leftover.every((tag) => tag.label.includes("ICC"));
+
+  const stem = name.replace(/\.[^.]+$/, "") || "image";
+  const extension = type.split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+
+  return {
+    blob: encoded.blob,
+    type: encoded.type,
+    width: encoded.width,
+    height: encoded.height,
+    filename: `${stem}.clean.${extension}`,
+    removed,
+    wasAlreadyClean: removed.length === 0,
+    lossy: !isLossless,
+    beforeBytes: before.byteLength,
+    afterBytes: encoded.blob.size,
+    verified,
   };
 }

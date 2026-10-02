@@ -107,9 +107,34 @@
 /* ------------------------------------------------------------------ */
 
 @layer base {
+  /*
+   * Dark is the product default and lives here, on :root, so it applies before
+   * any JavaScript runs. The inline theme script in the root layout only sets
+   * `data-theme`; every actual colour comes from these tokens.
+   *
+   * These previously held the LIGHT values while this block declared
+   * `color-scheme: dark`, and `[data-theme="light"]` set no colours at all. The
+   * toggle flipped `data-theme` and swapped the sun/moon icon, so it looked
+   * alive, but every page stayed light in both themes while native UI
+   * (scrollbars, date pickers, the file input) rendered dark-on-light.
+   *
+   * Light now lives under `[data-theme="light"]`, which is what the
+   * `.dark-only` / `.light-only` rules below already assumed.
+   */
   :root {
     color-scheme: dark;
-    /* Light theme tokens are swapped by [data-theme="light"] */
+    --surface-canvas: #050505;
+    --surface-card: #0d0d0d;
+    --surface-card-2: #121212;
+    --surface-line: #242424;
+    --surface-line-strong: #333333;
+    --text-ink: #ffffff;
+    --text-muted: #8a8a8a;
+    --text-ink-dim: #6b6b6b;
+  }
+
+  [data-theme="light"] {
+    color-scheme: light;
     --surface-canvas: #f7f7f8;
     --surface-card: #ffffff;
     --surface-card-2: #f2f2f4;
@@ -117,10 +142,7 @@
     --surface-line-strong: #d2d2d8;
     --text-ink: #0a0a0a;
     --text-muted: #5c5c66;
-  }
-
-  [data-theme="light"] {
-    color-scheme: light;
+    --text-ink-dim: #8e8e96;
   }
 
   * {

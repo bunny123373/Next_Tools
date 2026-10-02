@@ -544,4 +544,70 @@ export const VIDEO_TOOLS: readonly Tool[] = [
     ],
     related: ["audio-trimmer", "mp3-converter", "audio-normalizer"],
   },
+  {
+    id: "video-metadata-remover",
+    name: "Video Metadata Remover",
+    slug: "metadata-remover",
+    category: "video",
+    description:
+      "Strip title, author, encoder, GPS and date tags from an MP4 or MOV without re-encoding. The video and audio are copied byte for byte, so quality does not change.",
+    intro:
+      "Clear the hidden tags a video file carries — the title your editing app wrote, the camera that shot it, the software that made it, and any location recorded in the file. The picture and sound are copied untouched, so nothing is re-compressed and nothing is lost.",
+    icon: "Eraser",
+    keywords: [
+      "remove video metadata",
+      "strip mp4 metadata",
+      "remove exif from video",
+      "remove gps from video",
+      "video privacy",
+      "clean mov tags",
+      "remove title author mp4",
+    ],
+    route: "/tools/video/metadata-remover",
+    processing: "local",
+    status: "stable",
+    addedOn: "2026-10-02",
+    actionLabel: "Remove metadata",
+    features: [
+      "Removes the udta block, which is where MP4, MOV and 3GP files keep their tags",
+      "Copies the video and audio data byte for byte — no re-encoding, so no quality is lost",
+      "Lists every tag it found first, so you know what is being taken out",
+      "Reports the exact byte saving rather than an estimate",
+      "Works entirely in your browser; the file is never uploaded anywhere",
+    ],
+    howItWorks: [
+      "Your video is read in the browser and its metadata atoms are listed",
+      "Every box is copied exactly except udta, which holds the tags, and is left out",
+      "The sizes recorded in the container header are recalculated so the file stays valid",
+      "The result is read back to confirm no metadata remains and the file still parses",
+    ],
+    faq: [
+      {
+        question: "Does this reduce video quality?",
+        answer:
+          "No. Unlike an image re-encode, this never touches the picture or the sound. The compressed video and audio samples are copied byte for byte and only the box holding the metadata is left out, so the output is the same quality as the input.",
+      },
+      {
+        question: "Will it remove a watermark I can see in the video?",
+        answer:
+          "No, and no metadata tool can. A visible logo is part of the video frames themselves rather than a tag on the file, so removing it means re-encoding every frame and painting over the area. This tool only removes data recorded alongside the video.",
+      },
+      {
+        question: "Which formats are supported?",
+        answer:
+          "MP4, MOV and 3GP, which all share the same container structure and keep their tags in the same place. WebM and Matroska store tags differently and are not handled here — the tool says so rather than producing a file it cannot verify.",
+      },
+      {
+        question: "What is actually removed?",
+        answer:
+          "The udta block and the item list inside it: title, artist, album, comment, encoder, copyright, description and any recorded location. Codec settings, duration, resolution and the media data itself are all left alone, because removing any of those would break playback.",
+      },
+      {
+        question: "How big is the saving?",
+        answer:
+          "Usually small — a few kilobytes, because the tags themselves are tiny. A file with an embedded cover image or a long description can save more. The tool shows the real before and after byte counts rather than rounding to something impressive.",
+      },
+    ],
+    related: ["video-watermark", "video-frames", "video-compressor", "video-trimmer"],
+  },
 ];

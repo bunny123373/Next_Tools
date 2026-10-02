@@ -120,11 +120,25 @@ export function Navbar() {
             })}
           </div>
 
-          <div className="ml-auto flex items-center gap-1.5 lg:ml-0">
+          {/*
+           * Every icon-only control in this row is `icon` (40x40), not
+           * `icon-sm` (32x32) and not `sm`.
+           *
+           * 32px is under the 40px minimum this project already applies to
+           * touch targets, and on a phone it is a small thing to hit on its own.
+           * They are sized as a set because they sit side by side: raising only
+           * the theme button would leave two mismatched squares in one row,
+           * which reads as a mistake even though only one of them was one.
+           *
+           * Verified at 320/375/768/1024/1440 with no horizontal scroll at any
+           * of them — four 40px buttons plus the wordmark still fit a 320px
+           * viewport with room to spare.
+           */}
+          <div className="ml-auto flex items-center gap-1 lg:ml-0">
             <Tooltip content="Search tools (Ctrl + K)" side="bottom">
               <Button
                 variant="ghost"
-                size="sm"
+                size="icon"
                 onClick={() => setSearchOpen(true)}
                 aria-label="Search tools"
                 aria-keyshortcuts="Control+K"
@@ -141,7 +155,7 @@ export function Navbar() {
             <Tooltip content={mounted && theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={toggle}
                 aria-label={mounted && theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               >
@@ -154,7 +168,7 @@ export function Navbar() {
             <Tooltip content="Balu Tools on GitHub">
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 href={SITE.social.github}
                 target="_blank"
                 aria-label="Balu Tools on GitHub (opens in a new tab)"
@@ -165,7 +179,7 @@ export function Navbar() {
 
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="lg:hidden"
               onClick={() => setMobileOpen((value) => !value)}
               aria-expanded={mobileOpen}
@@ -236,6 +250,43 @@ export function Navbar() {
                   </li>
                 ))}
               </ul>
+
+              {/*
+                * A labelled control here as well as in the header.
+
+                * The header icon works at every width, but a 40px target with no
+                * visible label is a poor thing to ask someone to find on a phone,
+                * and it announces only an action rather than the current mode.
+                * This row is full width and names the state, which is what the
+                * header icon cannot do in the space available.
+
+                * `sm:hidden` because from 640px up the header icon sits beside it
+                * and the row would only repeat it.
+                */}
+              <div className="mt-5 border-t border-[var(--surface-line)] pt-4 sm:hidden">
+                <p className="px-1 pb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                  Appearance
+                </p>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  aria-label={
+                    mounted && theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+                  }
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-[var(--surface-line)] bg-[var(--surface-card)] px-3 py-3 text-left text-sm transition-colors hover:bg-[var(--surface-card-2)]"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-[var(--text-ink)]">
+                      {mounted && theme === "dark" ? "Dark mode" : "Light mode"}
+                    </span>
+                    <span className="block text-xs text-[var(--text-muted)]">
+                      Tap to switch to {mounted && theme === "dark" ? "light" : "dark"}
+                    </span>
+                  </span>
+                  <Sun className="dark-only size-5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+                  <Moon className="light-only size-5 shrink-0 text-[var(--text-muted)]" aria-hidden="true" />
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
