@@ -85,7 +85,22 @@ async function hasValidSession(): Promise<boolean> {
   const store = await cookies();
   const value = store.get(SESSION_COOKIE)?.value;
   if (!value) return false;
-  return safeEqual(value, await sign(value.split(".")[0] ?? "", secret));
+  /*
+   * The cookie IS the signature, and the thing that was signed is a timestamp.
+   * So re-signing `value` reproduces it exactly.
+   *
+   * This used to read `sign(value.split(".")[0] ?? "", secret)`, which assumed
+   * the cookie was `payload.signature`. createAdminSession has always written a
+   * bare signature with no dot in it, so the split returned the entire string
+   * and the comparison could never succeed. The effect was that signing in
+   * returned `signedIn: true`, set a cookie, and then every subsequent admin
+   * request came back 401 — an admin area that could never actually be used.
+   *
+   * What made it hard to see is that the failure looked exactly like a wrong
+   * secret: both return 401 with no detail. Token mode never reached this
+   * function, so setting ADMIN_SECRET instead appeared to fix it.
+   */
+  return safeEqual(value, await sign(value, secret));
 }
 
 /**

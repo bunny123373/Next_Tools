@@ -40,6 +40,7 @@ yarn-error.log*
 
 # Vercel
 .vercel
+.env*
 
 # TypeScript
 *.tsbuildinfo
@@ -71,3 +72,11 @@ lib/**/*.js
 
 # screenshots written by the headless-Chrome checks
 tmp/
+
+# `vercel link` appends `.vercel` and `.env*` here. Both are correct, and both
+# are duplicates of rules already above -- but the `.env*` one lands AFTER
+# `!.env.example`, and in gitignore the last matching rule wins. `.env.example`
+# survives today only because it is already tracked, which is an accident of
+# history rather than a guarantee. Re-stating the negation below means the
+# template stays committable even on a fresh clone.
+!.env.example
