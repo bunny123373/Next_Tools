@@ -135,9 +135,17 @@ export default function ImageMetadataWorkspace() {
   const file = files[0];
   const options = React.useMemo<InspectOptions>(() => ({}), []);
 
-  // The parsed report is written during the transform and read back on render,
-  // so the file is parsed exactly once per inspection.
-  const metaRef = React.useRef<Map<string, ImageMetadata>>(new Map());
+  /*
+   * The parsed report is written during the transform and read back here to
+   * render the panels, so the file is parsed and verified exactly once per
+   * inspection.
+   *
+   * It lives in state rather than a ref. A ref written inside an async callback
+   * and read during render has no guaranteed ordering, so a render can observe
+   * the previous file's report. State carries the same value through React's own
+   * commit, which is what makes the pairing with `json` trustworthy.
+   */
+  const [report, setReport] = React.useState<{ key: string; meta: ImageMetadata } | null>(null);
 
   const transform = React.useCallback<TransformFn<InspectOptions>>(
     async (files, _options, report) => {
@@ -155,7 +163,7 @@ export default function ImageMetadataWorkspace() {
         });
 
         const meta = await readImageMetadata(current);
-        metaRef.current.set(fileKey(current), meta);
+        setReport({ key: fileKey(current), meta });
 
         results.push({
           blob: new Blob([JSON.stringify(meta, null, 2)], { type: "application/json" }),
@@ -189,6 +197,7 @@ export default function ImageMetadataWorkspace() {
 
   const resetAll = React.useCallback(() => {
     reported.current = null;
+    setReport(null);
     reset();
     clear();
   }, [reset, clear]);
@@ -225,10 +234,9 @@ export default function ImageMetadataWorkspace() {
   }, [start]);
 
   const json = results[0];
-  const meta = React.useMemo(
-    () => (file && json?.source ? (metaRef.current.get(fileKey(json.source)) ?? null) : null),
-    [file, json],
-  );
+  /* Paired by file identity, so a report can never be shown against a different
+   * file than the one it describes. */
+  const meta = file && json?.source && report?.key === fileKey(json.source) ? report.meta : null;
 
   const text = file && meta ? reportText(file, meta) : null;
   const textName = file ? `${file.name.replace(/\.[^.]+$/, "")}.metadata.txt` : "metadata.txt";

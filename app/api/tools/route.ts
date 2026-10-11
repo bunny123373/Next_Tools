@@ -1,6 +1,6 @@
 import { apiOk, withErrorHandling } from "@/lib/api/respond";
 import { LIMITS, rateLimit, rateLimitHeaders } from "@/lib/api/rate-limit";
-import { CATEGORIES, TOOLS, validateRegistry } from "@/lib/tools/registry";
+import { CATEGORIES, TOOLS } from "@/lib/tools/registry";
 import { resolveToolStatus } from "@/lib/tools/runtime";
 
 export const runtime = "nodejs";

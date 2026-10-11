@@ -127,9 +127,20 @@ export default function ImageResizerWorkspace() {
 
   // The first file's identity, so adding to a batch does not wipe a target size
   // the user has already typed.
-  const firstRef = React.useRef<File | undefined>(undefined);
-  firstRef.current = files[0];
-  const firstKey = files[0] ? `${files[0].name}:${files[0].size}:${files[0].lastModified}` : null;
+  //
+  // `files[0]` is read directly below rather than through a ref that render
+  // assigns. A ref written during render is not guaranteed to hold the value
+  // this render committed, so the effect could measure a different file than
+  // the one its dependency names. The string key stays the dependency because a
+  // File is a fresh object on every render, and re-measuring on every
+  // unrelated re-render would be wasted work.
+  const firstFile = files[0] ?? null;
+  /*
+   * A stable identity for "the same first file", used as the measuring effect's
+   * dependency. Kept as a string because a File is a fresh object on every
+   * render, so depending on the object itself would re-measure constantly.
+   */
+  const firstKey = firstFile ? `${firstFile.name}:${firstFile.size}:${firstFile.lastModified}` : null;
 
   const ratio = source && source.height > 0 ? source.width / source.height : 1;
   const effectiveRatio = lockedRatio ?? ratio;
@@ -158,7 +169,7 @@ export default function ImageResizerWorkspace() {
   // Read the true dimensions of the first file so the fields start from real
   // numbers. The file itself is never modified.
   React.useEffect(() => {
-    const file = firstRef.current;
+    const file = firstFile;
     if (!file) {
       setSource(null);
       return;
@@ -184,6 +195,9 @@ export default function ImageResizerWorkspace() {
     return () => {
       active = false;
     };
+    // `firstKey`, not `firstFile`: a File is a new object on every render, so
+    // depending on it would re-measure constantly. The string means "the same
+    // first file", which is the actual trigger here.
   }, [firstKey]);
 
   const setWidthField = (next: number) => {

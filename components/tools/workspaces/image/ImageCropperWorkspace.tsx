@@ -167,12 +167,22 @@ export default function ImageCropperWorkspace() {
   const { results, stage, percent, done, total, caption, error, run, reset, isRunning } =
     useTransform({ transform, options });
 
+  /*
+   * `file` is read directly inside the effect rather than through a ref that
+   * render assigns. A ref written during render is not guaranteed to hold the
+   * value this render committed, so the effect could measure a different file
+   * than the one it is keyed on. Depending on `file` directly makes the value
+   * and the dependency the same thing.
+   *
+   * `firstKey` stays as the dependency because a File is a fresh object on
+   * every render of the list; the name/size/timestamp string is what actually
+   * identifies "the same file", so keying on it avoids re-measuring on every
+   * unrelated re-render.
+   */
   const firstKey = file ? `${file.name}:${file.size}:${file.lastModified}` : null;
-  const firstRef = React.useRef<File | undefined>(undefined);
-  firstRef.current = file;
 
   React.useEffect(() => {
-    const current = firstRef.current;
+    const current = file;
     if (!current) {
       setNatural(null);
       return;
@@ -197,6 +207,9 @@ export default function ImageCropperWorkspace() {
     return () => {
       active = false;
     };
+    // `firstKey` rather than `file`: a File is a new object on every render, so
+    // depending on it would re-measure constantly. The string means "the same
+    // file", which is the trigger that actually matters here.
   }, [firstKey]);
 
   /* ---------------------------------------------------------------- */

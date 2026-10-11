@@ -90,11 +90,21 @@ export default function ImageMetadataRemoverWorkspace() {
   );
 
   /**
-   * Per-instance, not module-level. A module map would keep every Blob the tool
-   * ever produced alive for the life of the page and would leak reports across
-   * component instances. It is cleared whenever the run resets.
+   * State rather than a ref, and keyed by file identity.
+   *
+   * A ref written from inside the transform's async callback and then read
+   * during render has no guaranteed ordering: a render can observe the previous
+   * file's outcome, and would happily list one file's removed tags against
+   * another's picture. State goes through React's commit, so the value shown is
+   * the one React last committed.
+   *
+   * The key is compared on render as well, so even a stale value cannot be shown
+   * against a different file.
    */
-  const reportRef = React.useRef<Map<string, StripMetadataResult>>(new Map());
+  const [report, setReport] = React.useState<{
+    key: string;
+    outcome: StripMetadataResult;
+  } | null>(null);
 
   const transform = React.useCallback<TransformFn<StripOptions>>(
     async (files, runOptions, report) => {
@@ -127,7 +137,7 @@ export default function ImageMetadataRemoverWorkspace() {
             ? `${outcome.removed.length} tag${outcome.removed.length === 1 ? "" : "s"} removed`
             : "no metadata found",
         });
-        reportRef.current.set(fileKey(current), outcome);
+        setReport({ key: fileKey(current), outcome });
 
         report({
           percent: files.length > 1 ? ((index + 1) / files.length) * 100 : null,
@@ -152,7 +162,7 @@ export default function ImageMetadataRemoverWorkspace() {
 
   const resetAll = React.useCallback(() => {
     reported.current = null;
-    reportRef.current.clear();
+    setReport(null);
     reset();
     clear();
     setQuality(92);
@@ -191,8 +201,10 @@ export default function ImageMetadataRemoverWorkspace() {
   }, [start]);
 
   const result = results[0];
+  /* The key is re-checked on render, so a stale report cannot be shown against
+   * a different file than the one it describes. */
   const outcome =
-    file && result?.source ? (reportRef.current.get(fileKey(result.source)) ?? null) : null;
+    file && result?.source && report?.key === fileKey(result.source) ? report.outcome : null;
 
   const bySource = React.useMemo(() => {
     const map = new Map<string, RemovedTag[]>();
