@@ -17,9 +17,9 @@ import { clampDescription } from "@/lib/seo";
  * `/tools/[category]` route, so it cannot collide with a category slug.
  */
 export const metadata: Metadata = {
-  title: "YouTube Audio & MP3/MP4 Converter",
+  title: "YouTube Takeout to MP3/MP4 Converter",
   description: clampDescription(
-    "Check a YouTube link and open the official page, and convert audio or video files you own to MP3 or MP4 locally in your browser with FFmpeg.wasm. Nothing is uploaded.",
+    "Turn a Google Takeout zip, or your own audio and video files, into MP3 or MP4 locally in your browser with FFmpeg.wasm. Batch conversion, nothing uploaded.",
   ),
   alternates: { canonical: "/tools/youtube-audio" },
 };
@@ -34,12 +34,12 @@ export default function YoutubeAudioPage() {
 
       <header className="mb-8 flex flex-col gap-4">
         <h1 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--text-ink)] sm:text-3xl">
-          YouTube Audio &amp; MP3/MP4 Converter
+          YouTube Takeout to MP3/MP4
         </h1>
         <p className="max-w-3xl text-[15px] leading-relaxed text-[var(--text-muted)]">
           This page does two separate things, and it is worth being clear about which is which. It
           validates YouTube links and sends you to the official page — it does not download anything
-          from YouTube. And it converts files you already have to MP3 or MP4, entirely inside your
+          from YouTube. And it converts media you already have to MP3 or MP4, entirely inside your
           browser, with no server involved.
         </p>
         <Link
@@ -77,6 +77,36 @@ export default function YoutubeAudioPage() {
             converter above. It runs FFmpeg compiled to WebAssembly in this tab, so the file is
             never uploaded and works the same on a phone as on a desktop. Audio becomes MP3; video
             becomes MP4 with an H.264 picture.
+          </p>
+        </div>
+      </section>
+
+      <section className="mt-14 max-w-3xl">
+        <h2 className="text-lg font-semibold tracking-[-0.01em] text-[var(--text-ink)]">
+          Getting your own YouTube videos
+        </h2>
+        <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-[var(--text-muted)]">
+          <p>
+            If the videos are yours, Google will hand you the originals directly. Two routes, both
+            free and both yours to use:
+          </p>
+          <ol className="list-inside list-decimal space-y-1.5">
+            <li>
+              <strong className="text-[var(--text-ink)]">Takeout</strong> — go to takeout.google.com,
+              choose YouTube (and YouTube Music), request an export, and Google emails a download
+              link. You get one zip containing every video you uploaded.
+            </li>
+            <li>
+              <strong className="text-[var(--text-ink)]">YouTube Studio</strong> — if you only need
+              one video, its Content page has a direct download button.
+            </li>
+          </ol>
+          <p>
+            Drop the Takeout zip straight into the converter above. It unpacks the archive in your
+            browser, ignores the <code className="font-mono text-xs">.info.json</code> and thumbnail
+            files that come with it, and queues every clip. Pick MP3 for the audio or MP4 to keep the
+            picture, then convert the lot and download the results as a zip. The whole export is
+            processed locally — Google&rsquo;s zip never leaves your machine.
           </p>
         </div>
       </section>

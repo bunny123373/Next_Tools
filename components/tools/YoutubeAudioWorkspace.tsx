@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AudioLines, Link2, Music, ShieldCheck, Trash2, Video } from "lucide-react";
+import { AudioLines, Link2, Music, ShieldCheck, TriangleAlert, Video } from "lucide-react";
 
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ import { FileRow } from "@/components/tools/FileDropzone";
 import { ProgressBar } from "@/components/tools/ProgressBar";
 import { Notice, ToolError } from "@/components/tools/states";
 import { formatBytes } from "@/lib/utils/format";
-import { downloadBlob } from "@/lib/utils/files";
+import { downloadBlob, downloadZipBatch, sumSizes, type NamedBlob } from "@/lib/utils/files";
+import { extractMedia, isArchive } from "@/lib/tools/engines/archive";
 import { toast } from "@/lib/utils/toast";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -63,7 +64,15 @@ export default function YoutubeAudioWorkspace() {
   const [dragging, setDragging] = React.useState(false);
   const dragDepth = React.useRef(0);
 
-  const [file, setFile] = React.useState<File | null>(null);
+  /**
+   * Batch state. `queue` is what will be converted, `outputs` what has already
+   * been converted. A single `file` used to sit alongside these, but it could
+   * disagree with `queue` after a per-row remove — the queue is the only truth.
+   */
+  const [queue, setQueue] = React.useState<File[]>([]);
+  const [outputs, setOutputs] = React.useState<NamedBlob[]>([]);
+  const [unpacking, setUnpacking] = React.useState(false);
+  const [batchIndex, setBatchIndex] = React.useState(0);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [percent, setPercent] = React.useState(0);
   const [result, setResult] = React.useState<{
@@ -72,6 +81,7 @@ export default function YoutubeAudioWorkspace() {
     format: OutputFormat;
   } | null>(null);
   const [error, setError] = React.useState<{ title: string; detail?: string } | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
 
   const [link, setLink] = React.useState("");
   const [linkState, setLinkState] = React.useState<LinkState>({ kind: "empty" });
@@ -98,9 +108,12 @@ export default function YoutubeAudioWorkspace() {
   const reset = React.useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
-    setFile(null);
+    setQueue([]);
+    setOutputs([]);
+    setBatchIndex(0);
     setResult(null);
     setError(null);
+    setNotice(null);
     setPercent(0);
     setPhase("idle");
     // Drop the previous encode so a 60 MB Blob is not retained after "Remove".
@@ -108,97 +121,185 @@ export default function YoutubeAudioWorkspace() {
     if (inputRef.current) inputRef.current.value = "";
   }, []);
 
-  const accept = React.useCallback((incoming: FileList | File[] | null) => {
-    const candidate = incoming?.[0];
-    if (!candidate) return;
+  /**
+   * Accepts media files and Takeout zips.
+   *
+   * Zips are unpacked here rather than in the convert path so the queue is
+   * always a flat list of real media — every later stage (validation, the
+   * batch loop, the download) then works on files, never archives.
+   */
+  const accept = React.useCallback(
+    async (incoming: FileList | File[] | null) => {
+      const list = Array.from(incoming ?? []);
+      if (list.length === 0) return;
 
-    reset();
+      reset();
+      setNotice(null);
 
-    if (!isSupported(candidate)) {
-      setError({
-        title: "That file type isn't supported.",
-        detail: `${candidate.name} — expected one of MP4, WebM, MOV, MKV, AVI, MP3, WAV, M4A, AAC, OGG, Opus or FLAC.`,
+      const archives = list.filter(isArchive);
+      const plain = list.filter((f) => !isArchive(f));
+      const collected: File[] = [];
+
+      for (const plainFile of plain) {
+        if (isSupported(plainFile)) collected.push(plainFile);
+      }
+
+      if (archives.length > 0) {
+        setUnpacking(true);
+        try {
+          for (const archive of archives) {
+            const extracted = await extractMedia(archive);
+            if (extracted.notAnArchive && extracted.skipped.length > 0) {
+              setError({ title: "That archive could not be opened.", detail: extracted.skipped[0]?.reason });
+              setUnpacking(false);
+              return;
+            }
+            for (const entry of extracted.files) collected.push(entry.file);
+            if (extracted.skipped.length > 0) {
+              setNotice(`${extracted.skipped.length} entr${extracted.skipped.length === 1 ? "y was" : "ies were"} skipped in ${archive.name}.`);
+            }
+          }
+        } finally {
+          setUnpacking(false);
+        }
+      }
+
+      // Validate after unpacking, so extracted files are checked too.
+      const usable = collected.filter((f) => {
+        if (f.size === 0) return false;
+        return f.size <= MAX_INPUT_BYTES;
       });
-      return;
-    }
 
-    if (candidate.size === 0) {
-      setError({ title: "That file is empty.", detail: `${candidate.name} is 0 bytes.` });
-      return;
-    }
+      const rejected = collected.filter((f) => f.size === 0 || f.size > MAX_INPUT_BYTES);
 
-    if (candidate.size > MAX_INPUT_BYTES) {
-      setError({
-        title: "That file is too large to convert here.",
-        detail: `${candidate.name} is ${formatBytes(candidate.size)}. The limit is ${formatBytes(MAX_INPUT_BYTES)}, because the whole file has to fit in memory alongside the decoder.`,
-      });
-      return;
-    }
+      if (usable.length === 0) {
+        setError({
+          title: list.length === 1 && rejected.length === 1 && rejected[0]!.size === 0
+            ? "That file is empty."
+            : "No usable media was found.",
+          detail:
+            rejected.length > 0
+              ? `${rejected.length} file${rejected.length === 1 ? "" : "s"} skipped — each must be non-empty and under ${formatBytes(MAX_INPUT_BYTES)}.`
+              : "Expected MP4, WebM, MOV, MKV, AVI, MP3, WAV, M4A, AAC, OGG, Opus or FLAC, or a Takeout zip.",
+        });
+        return;
+      }
 
-    setFile(candidate);
-  }, [reset]);
+      if (rejected.length > 0) {
+        setNotice(`${rejected.length} file${rejected.length === 1 ? " was" : "s were"} skipped — empty or over ${formatBytes(MAX_INPUT_BYTES)}.`);
+      }
 
-  const onDrop = (event: React.DragEvent) => {
-    event.preventDefault();
-    dragDepth.current = 0;
-    setDragging(false);
-    accept(event.dataTransfer.files);
-  };
+      setQueue(usable);
+    },
+    [reset],
+  );
 
   /* ---------------------------------------------------------------------- */
   /*  Conversion                                                            */
   /* ---------------------------------------------------------------------- */
 
   const convert = async () => {
-    if (!file || busy) return;
+    const targets = queue;
+    if (targets.length === 0 || busy) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
     setError(null);
     setResult(null);
+    setOutputs([]);
+    setBatchIndex(0);
     setPercent(0);
     setPhase("loading");
 
-    try {
-      const outcome = await convertMedia(file, {
-        format,
-        bitrateKbps: Number(bitrate),
-        sampleRateHz: Number(sampleRate),
-        channels: Number(channels) as 1 | 2,
-        crf: Number(crf),
-        signal: controller.signal,
-        onPhase: (next) => {
-          setPhase(next);
-          if (next === "converting") setPercent(0);
-        },
-        onProgress: (ratio) => setPercent(ratio * 100),
-      });
+    const isBatch = targets.length > 1;
+    const produced: NamedBlob[] = [];
+    let last: Awaited<ReturnType<typeof convertMedia>> | null = null;
+    let failure: ConversionError | null = null;
 
-      blobRef.current = outcome.blob;
-      setResult({ name: outcome.filename, bytes: outcome.bytes, format: outcome.format });
-      setPercent(100);
-      setPhase("done");
-      toast.success("MP3 ready", `${outcome.filename} · ${formatBytes(outcome.bytes)}`);
-    } catch (caught) {
-      const cancelled = caught instanceof ConversionError && caught.message === "Cancelled.";
-      if (cancelled) {
-        setPhase("idle");
-        return;
+    try {
+      for (const [index, source] of targets.entries()) {
+        if (controller.signal.aborted) break;
+        setBatchIndex(index);
+        // One file failing must not discard the ones already converted — a
+        // Takeout export of 40 clips should yield 39 files, not nothing.
+        try {
+          const outcome = await convertMedia(source, {
+            format,
+            bitrateKbps: Number(bitrate),
+            sampleRateHz: Number(sampleRate),
+            channels: Number(channels) as 1 | 2,
+            crf: Number(crf),
+            signal: controller.signal,
+            onPhase: (next) => {
+              setPhase(next);
+              if (next === "converting") setPercent(0);
+            },
+            onProgress: (ratio) => {
+              // A batch bar should advance across the whole set, not stall at
+              // 50% while file 20 of 40 runs.
+              const overall = ((index + ratio) / targets.length) * 100;
+              setPercent(overall);
+            },
+          });
+
+          last = outcome;
+          blobRef.current = outcome.blob;
+          produced.push({ name: outcome.filename, blob: outcome.blob });
+          setOutputs([...produced]);
+        } catch (caught) {
+          if (caught instanceof ConversionError && caught.message === "Cancelled.") throw caught;
+          const detail =
+            caught instanceof ConversionError && caught.cause instanceof Error
+              ? caught.cause.message
+              : caught instanceof Error
+                ? caught.message
+                : String(caught);
+          failure = new ConversionError(
+            targets.length > 1
+              ? `${targets.length - produced.length} of ${targets.length} files failed. First error: ${source.name}`
+              : caught instanceof ConversionError
+                ? caught.message
+                : "The conversion failed.",
+            { userFacing: true, cause: detail },
+          );
+          break;
+        }
       }
-      const detail =
-        caught instanceof ConversionError && caught.cause instanceof Error
-          ? caught.cause.message
-          : caught instanceof Error
-            ? caught.message
-            : String(caught);
-      setError({
-        title: caught instanceof ConversionError ? caught.message : "The conversion failed.",
-        detail,
-      });
-      setPhase("idle");
+    } catch (caught) {
+      if (!(caught instanceof ConversionError) || caught.message !== "Cancelled.") {
+        failure = new ConversionError("The conversion failed.", {
+          userFacing: true,
+          cause: caught,
+        });
+      }
     } finally {
       abortRef.current = null;
     }
+
+    if (produced.length > 0) {
+      setOutputs(produced);
+      setResult({ name: produced[produced.length - 1]!.name, bytes: produced[produced.length - 1]!.blob.size, format });
+      setPercent(100);
+      setPhase("done");
+    }
+
+    if (failure) {
+      setError({ title: failure.message, detail: failure.cause instanceof Error ? failure.cause.message : undefined });
+      setPhase(produced.length > 0 ? "done" : "idle");
+      return;
+    }
+
+    if (controller.signal.aborted) {
+      setPhase("idle");
+      return;
+    }
+
+    toast.success(
+      isBatch ? `${produced.length} files ready` : `${formatInfo(format).label} ready`,
+      isBatch
+        ? `${produced.length} of ${targets.length} files converted`
+        : `${last?.filename} · ${formatBytes(last?.bytes ?? 0)}`,
+    );
   };
 
   const cancel = () => {
@@ -348,14 +449,22 @@ export default function YoutubeAudioWorkspace() {
           <input
             ref={inputRef}
             type="file"
-            accept={ACCEPT_ATTRIBUTE}
+            accept={`${ACCEPT_ATTRIBUTE},.zip,application/zip`}
+            multiple
             className="sr-only"
             onChange={(event) => {
-              accept(event.target.files);
+              void accept(event.target.files);
             }}
           />
 
-          {!file ? (
+          {unpacking ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--surface-line)] bg-[var(--surface-card-2)] px-6 py-10 text-center">
+              <Music className="size-4 animate-pulse text-emerald-500" aria-hidden="true" />
+              <p className="text-[13px] text-[var(--text-muted)]" role="status">
+                Opening the archive and finding media inside…
+              </p>
+            </div>
+          ) : queue.length === 0 ? (
             <div
               role="button"
               tabIndex={0}
@@ -386,7 +495,12 @@ export default function YoutubeAudioWorkspace() {
                   setDragging(false);
                 }
               }}
-              onDrop={onDrop}
+              onDrop={(event) => {
+            event.preventDefault();
+            dragDepth.current = 0;
+            setDragging(false);
+            void accept(event.dataTransfer.files);
+          }}
               className={cn(
                 "flex cursor-pointer flex-col items-center justify-center gap-3",
                 "rounded-[14px] border-2 border-dashed px-6 py-12 text-center",
@@ -410,7 +524,7 @@ export default function YoutubeAudioWorkspace() {
               </span>
               <div className="space-y-1">
                 <p className="text-[15px] font-medium text-[var(--text-ink)]">
-                  {dragging ? "Drop to select" : "Drop your file here"}
+                  {dragging ? "Drop to select" : "Drop your files or a Takeout zip"}
                 </p>
                 <p className="text-[13px] text-[var(--text-muted)]">
                   or{" "}
@@ -418,38 +532,69 @@ export default function YoutubeAudioWorkspace() {
                 </p>
               </div>
               <p className="text-[11px] text-[var(--text-muted)]">
-                MP4, WebM, MOV, MKV, AVI, MP3, WAV, M4A, AAC, OGG, Opus, FLAC · max{" "}
-                {formatBytes(MAX_INPUT_BYTES)}
+                MP4, WebM, MOV, MKV, AVI, MP3, WAV, M4A, AAC, OGG, Opus, FLAC, ZIP · max{" "}
+                {formatBytes(MAX_INPUT_BYTES)} each
               </p>
               <p className="max-w-md text-[11px] leading-relaxed text-[var(--text-muted)]">
-                Only convert media you own or have permission to use.
+                A Google Takeout zip is unpacked here and every clip inside is queued. Only convert
+                media you own or have permission to use.
               </p>
             </div>
           ) : (
-            <ul className="grid gap-2">
-              <FileRow
-                file={file}
-                index={0}
-                meta={extensionOf(file.name).toUpperCase()}
-                disabled={busy}
-                onRemove={reset}
-                trailing={
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    onClick={reset}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-medium text-[var(--text-ink)]" role="status">
+                  {queue.length} {queue.length === 1 ? "file" : "files"} selected
+                  <span className="ml-2 font-normal text-[var(--text-muted)]">
+                    {formatBytes(sumSizes(queue))}
+                  </span>
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={reset}
+                  disabled={busy || unpacking}
+                >
+                  Clear
+                </Button>
+              </div>
+              <ul className="grid gap-1.5">
+                {queue.map((queued, index) => (
+                  <FileRow
+                    key={`${queued.name}-${index}`}
+                    file={queued}
+                    index={index}
+                    meta={extensionOf(queued.name).toUpperCase()}
                     disabled={busy}
-                    aria-label="Remove file"
-                  >
-                    <Trash2 className="size-3.5" aria-hidden="true" />
-                  </Button>
-                }
-              />
-            </ul>
+                    onRemove={() => {
+                      setQueue((current) => current.filter((_, i) => i !== index));
+                      setResult(null);
+                      setOutputs([]);
+                    }}
+                    trailing={
+                      batchIndex === index && busy ? (
+                        <span className="text-[11px] text-emerald-500">converting…</span>
+                      ) : undefined
+                    }
+                  />
+                ))}
+              </ul>
+              {queue.length > 6 ? (
+                <details className="text-[11px] text-[var(--text-muted)]">
+                  <summary className="cursor-pointer hover:text-[var(--text-ink)]">
+                    {queue.length} files — most likely a Takeout export
+                  </summary>
+                  <p className="mt-1 leading-relaxed">
+                    They will be converted one after another. You can cancel at any point; files
+                    already finished are kept.
+                  </p>
+                </details>
+              ) : null}
+            </div>
           )}
 
           {/* Options ---------------------------------------------------- */}
-          {file && !result ? (
+          {queue.length > 0 && !result ? (
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-medium text-[var(--text-ink)]">
@@ -571,18 +716,36 @@ export default function YoutubeAudioWorkspace() {
           {result ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] px-5 py-6 text-center">
               <p className="text-[15px] font-medium text-[var(--text-ink)]">
-                Your {formatInfo(result.format).label} is ready.
+                {outputs.length > 1
+                  ? `${outputs.length} ${formatInfo(result.format).label} files are ready.`
+                  : `Your ${formatInfo(result.format).label} is ready.`}
               </p>
               <p className="text-[13px] text-[var(--text-muted)]">
-                <span className="font-mono">{result.name}</span> · {formatBytes(result.bytes)}
+                {outputs.length > 1 ? (
+                  <>{formatBytes(sumSizes(outputs.map((o) => ({ size: o.blob.size }))))} in total</>
+                ) : (
+                  <>
+                    <span className="font-mono">{result.name}</span> · {formatBytes(result.bytes)}
+                  </>
+                )}
               </p>
               <div className="mt-1 flex flex-wrap justify-center gap-2">
-                <Button onClick={() => downloadBlob(blobRef.current, result.name)} className="bg-emerald-500 hover:bg-emerald-600">
-                  <Music className="size-4" aria-hidden="true" />
-                  Download {formatInfo(result.format).label}
-                </Button>
+                {outputs.length > 1 ? (
+                  <Button
+                    onClick={() => void downloadZipBatch(outputs, `converted-${formatInfo(result.format).label.toLowerCase()}`)}
+                    className="bg-emerald-500 hover:bg-emerald-600"
+                  >
+                    <Music className="size-4" aria-hidden="true" />
+                    Download all as ZIP
+                  </Button>
+                ) : (
+                  <Button onClick={() => downloadBlob(blobRef.current, result.name)} className="bg-emerald-500 hover:bg-emerald-600">
+                    <Music className="size-4" aria-hidden="true" />
+                    Download {formatInfo(result.format).label}
+                  </Button>
+                )}
                 <Button variant="secondary" onClick={reset}>
-                  Convert another file
+                  Convert another batch
                 </Button>
               </div>
             </div>
@@ -597,7 +760,7 @@ export default function YoutubeAudioWorkspace() {
               // would be a no-op. Only offer the retry when there is actually a
               // file to re-run; otherwise send the user back to the picker.
               onRetry={
-                file
+                queue.length > 0
                   ? () => {
                       resetFFmpeg();
                       void convert();
@@ -605,7 +768,7 @@ export default function YoutubeAudioWorkspace() {
                   : () => inputRef.current?.click()
               }
             >
-              {file ? null : (
+              {queue.length > 0 ? null : (
                 <Button variant="secondary" size="sm" onClick={() => inputRef.current?.click()}>
                   Choose another file
                 </Button>
@@ -614,11 +777,11 @@ export default function YoutubeAudioWorkspace() {
           ) : null}
 
           {/* Idle actions ------------------------------------------------ */}
-          {file && !result && !busy && !error ? (
+          {queue.length > 0 && !result && !busy && !error ? (
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => void convert()}>
                 <Music className="size-4" aria-hidden="true" />
-                Convert to {formatInfo(format).label}
+                Convert {queue.length > 1 ? `${queue.length} files` : `to ${formatInfo(format).label}`}
               </Button>
               <Button variant="secondary" onClick={reset}>
                 Choose another file
@@ -629,7 +792,13 @@ export default function YoutubeAudioWorkspace() {
             </div>
           ) : null}
 
-          {!file && !busy && !error ? (
+          {notice ? (
+            <Notice tone="warning" icon={<TriangleAlert className="size-3.5" />}>
+              {notice}
+            </Notice>
+          ) : null}
+
+          {queue.length === 0 && !busy && !error && !unpacking ? (
             <Notice tone="info" icon={<ShieldCheck className="size-3.5" />}>
               The first conversion downloads a ~31 MB FFmpeg core and caches it for the session.
               Nothing you select is uploaded — the file is read in this tab and encoded here.
