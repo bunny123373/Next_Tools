@@ -17,14 +17,17 @@ import {
   ACCEPT_ATTRIBUTE,
   ConversionError,
   classifyYouTubeUrl,
-  convertToMp3,
+  convertMedia,
   extensionOf,
+  formatInfo,
   isSupported,
   loadFFmpeg,
   MAX_INPUT_BYTES,
+  OUTPUT_FORMATS,
   resetFFmpeg,
   type ConversionPhase,
   type LinkState,
+  type OutputFormat,
 } from "@/lib/tools/engines/ffmpeg-mp3";
 
 /* -------------------------------------------------------------------------- */
@@ -45,6 +48,16 @@ const SAMPLE_RATES = [
   { value: "48000", label: "48 kHz" },
 ] as const;
 
+/**
+ * CRF labels for the MP4 path. CRF is the number most people have never seen,
+ * so the picker says what it means rather than showing a bare integer.
+ */
+const CRFS = [
+  { value: "23", label: "Best" },
+  { value: "28", label: "Balanced" },
+  { value: "33", label: "Small" },
+] as const;
+
 export default function YoutubeAudioWorkspace() {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = React.useState(false);
@@ -53,15 +66,21 @@ export default function YoutubeAudioWorkspace() {
   const [file, setFile] = React.useState<File | null>(null);
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [percent, setPercent] = React.useState(0);
-  const [result, setResult] = React.useState<{ name: string; bytes: number } | null>(null);
+  const [result, setResult] = React.useState<{
+    name: string;
+    bytes: number;
+    format: OutputFormat;
+  } | null>(null);
   const [error, setError] = React.useState<{ title: string; detail?: string } | null>(null);
 
   const [link, setLink] = React.useState("");
   const [linkState, setLinkState] = React.useState<LinkState>({ kind: "empty" });
 
+  const [format, setFormat] = React.useState<OutputFormat>("mp3");
   const [bitrate, setBitrate] = React.useState("192");
   const [sampleRate, setSampleRate] = React.useState("44100");
   const [channels, setChannels] = React.useState<"1" | "2">("2");
+  const [crf, setCrf] = React.useState("28");
 
   const abortRef = React.useRef<AbortController | null>(null);
   /**
@@ -141,10 +160,12 @@ export default function YoutubeAudioWorkspace() {
     setPhase("loading");
 
     try {
-      const outcome = await convertToMp3(file, {
+      const outcome = await convertMedia(file, {
+        format,
         bitrateKbps: Number(bitrate),
         sampleRateHz: Number(sampleRate),
         channels: Number(channels) as 1 | 2,
+        crf: Number(crf),
         signal: controller.signal,
         onPhase: (next) => {
           setPhase(next);
@@ -154,7 +175,7 @@ export default function YoutubeAudioWorkspace() {
       });
 
       blobRef.current = outcome.blob;
-      setResult({ name: outcome.filename, bytes: outcome.bytes });
+      setResult({ name: outcome.filename, bytes: outcome.bytes, format: outcome.format });
       setPercent(100);
       setPhase("done");
       toast.success("MP3 ready", `${outcome.filename} · ${formatBytes(outcome.bytes)}`);
@@ -316,7 +337,7 @@ export default function YoutubeAudioWorkspace() {
             </span>
             <div>
               <h2 className="text-[15px] font-semibold text-[var(--text-ink)]">
-                Convert a file you own to MP3
+                Convert a file you own to MP3 or MP4
               </h2>
               <p className="text-[13px] text-[var(--text-muted)]">
                 FFmpeg.wasm runs entirely in this tab. Nothing is uploaded.
@@ -429,10 +450,30 @@ export default function YoutubeAudioWorkspace() {
 
           {/* Options ---------------------------------------------------- */}
           {file && !result ? (
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[13px] font-medium text-[var(--text-ink)]">
+                  Output format
+                </span>
+                <Segmented
+                  label="Output format"
+                  value={format}
+                  disabled={busy}
+                  onChange={setFormat}
+                  options={OUTPUT_FORMATS.map((entry) => ({
+                    value: entry.id,
+                    label: entry.label,
+                  }))}
+                />
+                <p className="text-[11px] leading-relaxed text-[var(--text-muted)]">
+                  {formatInfo(format).hint}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="yt-bitrate" className="text-[13px] font-medium text-[var(--text-ink)]">
-                  Bitrate
+                  Audio bitrate
                 </label>
                 <Select
                   id="yt-bitrate"
@@ -480,6 +521,28 @@ export default function YoutubeAudioWorkspace() {
                   ]}
                 />
               </div>
+              </div>
+
+              {/* Video quality only exists on the MP4 path. */}
+              {format === "mp4" ? (
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="yt-crf" className="text-[13px] font-medium text-[var(--text-ink)]">
+                    Video quality
+                  </label>
+                  <Select
+                    id="yt-crf"
+                    value={crf}
+                    disabled={busy}
+                    onChange={(event) => setCrf(event.target.value)}
+                  >
+                    {CRFS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -492,7 +555,9 @@ export default function YoutubeAudioWorkspace() {
                 caption={
                   phase === "loading"
                     ? "Downloading the FFmpeg core (~31 MB). This happens once."
-                    : "Encoding in this tab — the page stays usable."
+                    : format === "mp4"
+                      ? "Encoding H.264 in this tab. Video encoding in WebAssembly is slow — a few minutes of video can take several."
+                      : "Encoding in this tab — the page stays usable."
                 }
                 className="[&_div]:text-emerald-500"
               />
@@ -505,14 +570,16 @@ export default function YoutubeAudioWorkspace() {
           {/* Result ------------------------------------------------------ */}
           {result ? (
             <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.06] px-5 py-6 text-center">
-              <p className="text-[15px] font-medium text-[var(--text-ink)]">Your MP3 is ready.</p>
+              <p className="text-[15px] font-medium text-[var(--text-ink)]">
+                Your {formatInfo(result.format).label} is ready.
+              </p>
               <p className="text-[13px] text-[var(--text-muted)]">
                 <span className="font-mono">{result.name}</span> · {formatBytes(result.bytes)}
               </p>
               <div className="mt-1 flex flex-wrap justify-center gap-2">
                 <Button onClick={() => downloadBlob(blobRef.current, result.name)} className="bg-emerald-500 hover:bg-emerald-600">
                   <Music className="size-4" aria-hidden="true" />
-                  Download MP3
+                  Download {formatInfo(result.format).label}
                 </Button>
                 <Button variant="secondary" onClick={reset}>
                   Convert another file
@@ -551,7 +618,7 @@ export default function YoutubeAudioWorkspace() {
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => void convert()}>
                 <Music className="size-4" aria-hidden="true" />
-                Convert to MP3
+                Convert to {formatInfo(format).label}
               </Button>
               <Button variant="secondary" onClick={reset}>
                 Choose another file

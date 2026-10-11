@@ -17,9 +17,9 @@ import { clampDescription } from "@/lib/seo";
  * `/tools/[category]` route, so it cannot collide with a category slug.
  */
 export const metadata: Metadata = {
-  title: "YouTube Audio & MP3 Converter",
+  title: "YouTube Audio & MP3/MP4 Converter",
   description: clampDescription(
-    "Check a YouTube link and open the official page, and convert audio or video files you own to MP3 locally in your browser with FFmpeg.wasm. Nothing is uploaded.",
+    "Check a YouTube link and open the official page, and convert audio or video files you own to MP3 or MP4 locally in your browser with FFmpeg.wasm. Nothing is uploaded.",
   ),
   alternates: { canonical: "/tools/youtube-audio" },
 };
@@ -34,13 +34,13 @@ export default function YoutubeAudioPage() {
 
       <header className="mb-8 flex flex-col gap-4">
         <h1 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--text-ink)] sm:text-3xl">
-          YouTube Audio &amp; MP3 Converter
+          YouTube Audio &amp; MP3/MP4 Converter
         </h1>
         <p className="max-w-3xl text-[15px] leading-relaxed text-[var(--text-muted)]">
           This page does two separate things, and it is worth being clear about which is which. It
           validates YouTube links and sends you to the official page — it does not download anything
-          from YouTube. And it converts files you already have, entirely inside your browser, with
-          no server involved.
+          from YouTube. And it converts files you already have to MP3 or MP4, entirely inside your
+          browser, with no server involved.
         </p>
         <Link
           href="/tools"
@@ -75,7 +75,8 @@ export default function YoutubeAudioPage() {
             If you have already obtained a file you are entitled to use — your own recording, a file
             from a licensed library, a friend&rsquo;s video with their permission — drop it into the
             converter above. It runs FFmpeg compiled to WebAssembly in this tab, so the file is
-            never uploaded and works the same on a phone as on a desktop.
+            never uploaded and works the same on a phone as on a desktop. Audio becomes MP3; video
+            becomes MP4 with an H.264 picture.
           </p>
         </div>
       </section>

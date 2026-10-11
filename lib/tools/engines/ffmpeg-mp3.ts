@@ -26,14 +26,36 @@
 
 import type { FFmpeg } from "@ffmpeg/ffmpeg";
 
-/** Pinned to an exact version: an unpinned CDN tag can swap the binary under a
- *  cached page and change behaviour without any deploy on our side. */
-const FFMPEG_VERSION = "0.12.15";
-const CORE_BASE = `https://unpkg.com/@ffmpeg/core@${FFMPEG_VERSION}/dist/umd`;
-const UTIL_BASE = `https://unpkg.com/@ffmpeg/util@0.12.2/dist/umd`;
+/**
+ * Version pins, and they are deliberately NOT the same number.
+ *
+ * `@ffmpeg/ffmpeg` (the JS wrapper) is on 0.12.15. `@ffmpeg/core` (the wasm
+ * binary) is only published up to **0.12.10**. Pinning the core to the
+ * wrapper's version produced a 404 that surfaced to users as a generic
+ * "could not load" — verified against the registry rather than assumed.
+ *
+ * Both are pinned exactly: an unpinned tag can swap the binary under an
+ * already-cached page and change behaviour with no deploy on our side.
+ */
+const CORE_VERSION = "0.12.10";
+const WRAPPER_VERSION = "0.12.15";
+
+const CORE_BASE = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
+const WRAPPER_BASE = `https://unpkg.com/@ffmpeg/ffmpeg@${WRAPPER_VERSION}/dist/umd`;
 
 export const FFMPEG_CORE_URL = `${CORE_BASE}/ffmpeg-core.js`;
 export const FFMPEG_WASM_URL = `${CORE_BASE}/ffmpeg-core.wasm`;
+
+/**
+ * The essential worker lives in `@ffmpeg/ffmpeg`, not `@ffmpeg/util` — util
+ * only ships the `toBlobURL`/`fetchFile` helpers.
+ *
+ * This must be passed explicitly. The bundled wrapper resolves its worker
+ * against a hardcoded absolute path from the machine it was built on
+ * (`file:///Users/focus/Projects/ffmpeg.wasm/...`), which cannot resolve in a
+ * browser and fails with an opaque `Failed to construct 'Worker'`.
+ */
+const CLASS_WORKER_URL = `${WRAPPER_BASE}/814.ffmpeg.js`;
 
 /**
  * Single-threaded core.
@@ -89,10 +111,14 @@ export const ACCEPT_ATTRIBUTE = [
 export type ConversionPhase = "loading" | "converting" | "done";
 
 export interface ConvertOptions {
-  /** FFmpeg output bitrate. */
+  /** Target container/codec pair. Defaults to audio-only MP3. */
+  format?: OutputFormat;
+  /** Audio bitrate, applied to both formats. */
   bitrateKbps?: number;
   sampleRateHz?: number;
   channels?: 1 | 2;
+  /** H.264 quality for MP4 output. Lower is better quality and a bigger file. */
+  crf?: number;
   /** Progress sink; receives 0–1. */
   onProgress?: (ratio: number) => void;
   /** Distinguishes "downloading the 31 MB core" from "encoding your file". */
@@ -106,6 +132,7 @@ export interface ConvertResult {
   bytes: number;
   /** Wall-clock encode time, excluding the core download. */
   elapsedMs: number;
+  format: OutputFormat;
 }
 
 export class ConversionError extends Error {
@@ -118,6 +145,47 @@ export class ConversionError extends Error {
     this.userFacing = options?.userFacing ?? false;
     if (options?.cause !== undefined) this.cause = options.cause;
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Output formats                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What the user gets back.
+ *
+ * `mp3` is audio-only. `mp4` keeps a video stream and re-encodes it as H.264,
+ * which is dramatically slower in wasm than LAME is — the UI warns about this
+ * rather than letting someone discover it after waiting ten minutes on a
+ * 10-minute clip.
+ */
+export type OutputFormat = "mp3" | "mp4";
+
+export const OUTPUT_FORMATS: readonly {
+  id: OutputFormat;
+  label: string;
+  extension: string;
+  mime: string;
+  hint: string;
+}[] = [
+  {
+    id: "mp3",
+    label: "MP3",
+    extension: "mp3",
+    mime: "audio/mpeg",
+    hint: "Audio only. Fast, and the right choice for listening.",
+  },
+  {
+    id: "mp4",
+    label: "MP4",
+    extension: "mp4",
+    mime: "video/mp4",
+    hint: "Keeps the picture as H.264. Much slower to encode in the browser.",
+  },
+] as const;
+
+export function formatInfo(format: OutputFormat) {
+  return OUTPUT_FORMATS.find((entry) => entry.id === format) ?? OUTPUT_FORMATS[0];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -222,9 +290,9 @@ export function isSupported(file: { name: string; type?: string }): boolean {
   return type.startsWith("video/") || type.startsWith("audio/");
 }
 
-export function outputName(filename: string): string {
-  const base = filename.replace(/\.[^.]+$/, "") || "audio";
-  return `${base}.mp3`;
+export function outputNameFor(filename: string, format: OutputFormat): string {
+  const base = filename.replace(/\.[^.]+$/, "") || (format === "mp3" ? "audio" : "video");
+  return `${base}.${formatInfo(format).extension}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -272,15 +340,15 @@ export function loadFFmpeg(onPhase?: (phase: ConversionPhase) => void): Promise<
         return toBlobURL(url, mimeType);
       };
 
-      const [coreURL, wasmURL, workerURL, classWorkerURL] = await Promise.all([
+      const [coreURL, wasmURL, classWorkerURL] = await Promise.all([
         fetchAsset(FFMPEG_CORE_URL, "text/javascript"),
         fetchAsset(FFMPEG_WASM_URL, "application/wasm"),
-        // Without the worker URLs the worker resolves them against our origin.
-        fetchAsset(`${UTIL_BASE}/ffmpeg-worker.js`, "text/javascript"),
-        fetchAsset(`${UTIL_BASE}/814.ffmpeg.js`, "text/javascript"),
+        fetchAsset(CLASS_WORKER_URL, "text/javascript"),
       ]);
 
-      await instance.load({ coreURL, wasmURL, workerURL, classWorkerURL });
+      // No `workerURL`: that key is for the *multithreaded* core's extra worker,
+      // and passing one for a single-threaded core only adds a failed fetch.
+      await instance.load({ coreURL, wasmURL, classWorkerURL });
       return instance;
     } catch (error) {
       // Clear the cache so a retry re-downloads rather than replaying the failure.
@@ -311,7 +379,7 @@ export function isCoreLoaded(): boolean {
 /* -------------------------------------------------------------------------- */
 
 /** Turns FFmpeg's stderr tail into something a person can act on. */
-function explain(log: string): string {
+function explain(log: string, format: OutputFormat): string {
   const text = log.toLowerCase();
   if (text.includes("no such file or directory")) {
     return "FFmpeg could not read the file. It may be empty, corrupt, or still syncing from your device.";
@@ -320,10 +388,18 @@ function explain(log: string): string {
     return "FFmpeg could not decode this file. It may be corrupt, or use a codec this build does not include.";
   }
   if (text.includes("does not contain any stream")) {
-    return "This file has no audio track, so there is nothing to convert to MP3.";
+    return format === "mp3"
+      ? "This file has no audio track, so there is nothing to convert to MP3."
+      : "This file has no audio or video stream to convert.";
+  }
+  if (text.includes("video:") && text.includes("no such filter")) {
+    return "This build could not encode the video stream to H.264. Try MP3, which only needs the audio encoder.";
   }
   if (text.includes("unknown format")) {
     return "FFmpeg does not recognise this file's container format.";
+  }
+  if (format === "mp4" && text.includes("audio")) {
+    return "FFmpeg could not encode this file's audio to AAC. Try MP3 instead.";
   }
   return "The conversion failed inside FFmpeg. The technical log is below.";
 }
@@ -342,11 +418,97 @@ export function createLogCollector(limit = 40) {
   };
 }
 
-export async function convertToMp3(file: File, options: ConvertOptions = {}): Promise<ConvertResult> {
+/**
+ * Builds the FFmpeg argument vector for a target format.
+ *
+ * Exported so the exact flags are testable without a browser and a 31 MB
+ * download — these strings are where a silent quality regression would hide.
+ */
+export function buildArgs(options: {
+  inputName: string;
+  outputName: string;
+  format: OutputFormat;
+  bitrateKbps: number;
+  sampleRateHz: number;
+  channels: 1 | 2;
+  crf: number;
+}): string[] {
   const {
+    inputName,
+    outputName,
+    format,
+    bitrateKbps,
+    sampleRateHz,
+    channels,
+    crf,
+  } = options;
+
+  const audio = [
+    "-map_metadata",
+    "-1", // strip identifying metadata
+    "-b:a",
+    `${bitrateKbps}k`,
+    "-ar",
+    String(sampleRateHz),
+    "-ac",
+    String(channels),
+  ];
+
+  if (format === "mp3") {
+    return [
+      "-i",
+      inputName,
+      "-vn", // drop any video stream; MP3 is audio-only
+      ...audio,
+      "-f",
+      "mp3",
+      outputName,
+    ];
+  }
+
+  /**
+   * MP4 / H.264.
+   *
+   * `-preset ultrafast` is not optional here. The default preset spends most of
+   * its time on motion estimation and psychovisual tuning that buys nothing
+   * visible at CRF 28 — but in wasm it is the difference between a conversion
+   * that finishes and one that appears to hang.
+   *
+   * `-pix_fmt yuv420p` because H.264 in 4:2:2 or 4:4:4 plays in Chrome and
+   * fails in Safari, QuickTime and every phone gallery. Forcing 4:2:0 costs a
+   * little chroma detail and makes the file actually portable.
+   *
+   * `-movflags +faststart` moves the index to the front so the file starts
+   * playing before it has fully downloaded — without it a browser has to fetch
+   * the whole file before it will play anything.
+   */
+  return [
+    "-i",
+    inputName,
+    ...audio,
+    "-c:v",
+    "libx264",
+    "-preset",
+    "ultrafast",
+    "-crf",
+    String(crf),
+    "-pix_fmt",
+    "yuv420p",
+    "-movflags",
+    "+faststart",
+    "-f",
+    "mp4",
+    outputName,
+  ];
+}
+
+export async function convertMedia(file: File, options: ConvertOptions = {}): Promise<ConvertResult> {
+  const {
+    format = "mp3",
     bitrateKbps = 192,
     sampleRateHz = 44100,
     channels = 2,
+    crf = 28,
     onProgress,
     onPhase,
     signal,
@@ -365,7 +527,8 @@ export async function convertToMp3(file: File, options: ConvertOptions = {}): Pr
   if (signal?.aborted) throw new ConversionError("Cancelled.", { userFacing: true });
 
   const inputName = `input.${extensionOf(file.name) || "bin"}`;
-  const outputName_ = "output.mp3";
+  const target = formatInfo(format);
+  const outputName_ = `output.${target.extension}`;
 
   // FFmpeg reports progress and stderr on worker messages; both callbacks are
   // registered per run and torn down in `finally` so a second conversion cannot
@@ -385,34 +548,29 @@ export async function convertToMp3(file: File, options: ConvertOptions = {}): Pr
     const { fetchFile } = await import("@ffmpeg/util");
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-    const args = [
-      "-i",
-      inputName,
-      "-vn", // drop any video stream; MP3 is audio-only
-      "-map_metadata",
-      "-1", // strip identifying metadata
-      "-b:a",
-      `${bitrateKbps}k`,
-      "-ar",
-      String(sampleRateHz),
-      "-ac",
-      String(channels),
-      "-f",
-      "mp3",
-      outputName_,
-    ];
-
-    const code = await ffmpeg.exec(args);
+    const code = await ffmpeg.exec(
+      buildArgs({
+        inputName,
+        outputName: outputName_,
+        format,
+        bitrateKbps,
+        sampleRateHz,
+        channels,
+        crf,
+      }),
+    );
 
     if (code !== 0) {
       const detail = logs.tail(12);
-      throw new ConversionError(explain(detail), { userFacing: true, cause: detail });
+      throw new ConversionError(explain(detail, format), { userFacing: true, cause: detail });
     }
 
     const data = (await ffmpeg.readFile(outputName_)) as Uint8Array;
     if (data.byteLength === 0) {
       throw new ConversionError(
-        "FFmpeg produced an empty file. The input may have no decodable audio track.",
+        format === "mp3"
+          ? "FFmpeg produced an empty file. The input may have no decodable audio track."
+          : "FFmpeg produced an empty file. This build cannot encode that input to MP4.",
         { userFacing: true },
       );
     }
@@ -420,13 +578,14 @@ export async function convertToMp3(file: File, options: ConvertOptions = {}): Pr
     // Copy out of the wasm heap before deleting: `readFile` returns a view into
     // memory that `deleteFile` invalidates.
     const bytes = new Uint8Array(data);
-    const blob = new Blob([bytes], { type: "audio/mpeg" });
+    const blob = new Blob([bytes], { type: target.mime });
 
     return {
       blob,
-      filename: outputName(file.name),
+      filename: outputNameFor(file.name, format),
       bytes: bytes.byteLength,
       elapsedMs: performance.now() - startedAt,
+      format,
     };
   } catch (error) {
     if (error instanceof ConversionError) throw error;
