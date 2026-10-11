@@ -101,6 +101,9 @@ const STATIC_ROUTES: readonly StaticRoute[] = [
   { path: "/pricing", changeFrequency: "monthly", priority: 0.5 },
   { path: "/api-docs", changeFrequency: "monthly", priority: 0.5 },
   { path: "/tool-builder", changeFrequency: "monthly", priority: 0.5 },
+  // A standalone page outside the registry, for the same reason it is not a Tool:
+  // it is a link-checker plus a converter, with a rights position attached.
+  { path: "/tools/youtube-audio", changeFrequency: "monthly", priority: 0.5 },
   { path: "/about", changeFrequency: "yearly", priority: 0.4 },
   { path: "/contact", changeFrequency: "yearly", priority: 0.4 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },

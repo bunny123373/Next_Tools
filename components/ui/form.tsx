@@ -293,6 +293,8 @@ export interface SegmentedProps<T extends string> {
   label: string;
   className?: string;
   size?: "sm" | "md";
+  /** Matches the other controls in this file: inert and dimmed while a tool is busy. */
+  disabled?: boolean;
 }
 
 export function Segmented<T extends string>({
@@ -302,13 +304,16 @@ export function Segmented<T extends string>({
   label,
   className,
   size = "md",
+  disabled = false,
 }: SegmentedProps<T>) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
+      aria-disabled={disabled || undefined}
       className={cn(
         "inline-flex w-full flex-wrap gap-1 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] p-1",
+        disabled && "cursor-not-allowed opacity-50",
         className,
       )}
     >
@@ -321,6 +326,7 @@ export function Segmented<T extends string>({
             role="radio"
             aria-checked={active}
             title={option.title}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
               "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg font-medium transition-colors duration-150",
@@ -328,6 +334,7 @@ export function Segmented<T extends string>({
               active
                 ? "bg-brand-500 text-white"
                 : "text-[var(--text-muted)] hover:bg-[var(--surface-line)] hover:text-[var(--text-ink)]",
+              "disabled:cursor-not-allowed disabled:pointer-events-none",
             )}
           >
             {option.icon}
