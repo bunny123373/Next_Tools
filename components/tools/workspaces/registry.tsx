@@ -66,6 +66,7 @@ export const WORKSPACES: Record<string, WorkspaceComponent> = {
   "json-validator": dynamic(() => import("./developer/JsonValidatorWorkspace")),
   "jwt-decoder": dynamic(() => import("./developer/JwtDecoderWorkspace")),
   "markdown-to-html": dynamic(() => import("./developer/MarkdownToHtmlWorkspace")),
+  "password-generator": dynamic(() => import("./developer/PasswordGeneratorWorkspace")),
   "qr-generator": dynamic(() => import("./developer/QrGeneratorWorkspace")),
   "regex-tester": dynamic(() => import("./developer/RegexTesterWorkspace")),
   "sql-formatter": dynamic(() => import("./developer/SqlFormatterWorkspace")),

@@ -6189,3 +6189,305 @@ export function auditSecurityHeaders(headers: readonly HeaderRow[]): SecurityHea
     return { header: spec.header, present, verdict, finding, guidance };
   });
 }
+
+/* ------------------------------------------------------------------ */
+/*  Password                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Character pools. Deliberately narrow: a password only has to be typed once,
+ * and every extra character is one more symbol the person storing it can
+ * transpose from a password manager.
+ */
+const PW_LOWERCASE = "abcdefghijklmnopqrstuvwxyz";
+const PW_UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const PW_DIGITS = "0123456789";
+const PW_SYMBOLS = "!#$%&()*+,-./:;<=>?@[]^_{|}~";
+
+const PW_POOLS = {
+  lowercase: PW_LOWERCASE,
+  uppercase: PW_UPPERCASE,
+  digits: PW_DIGITS,
+  symbols: PW_SYMBOLS,
+} as const;
+
+/**
+ * Characters that are misread when read aloud or copied off a screenshot.
+ * `I`/`l`/`1`, `O`/`0`/`o`, and the quote family — the set is a judgement call,
+ * so the UI says exactly which characters these are rather than implying a
+ * standard.
+ */
+const PW_AMBIGUOUS = new Set(["I", "l", "1", "O", "0", "o", "|", "'", '"', "`"]);
+
+export type PasswordSetId = keyof typeof PW_POOLS;
+
+export interface PasswordSetToggle {
+  lowercase: boolean;
+  uppercase: boolean;
+  digits: boolean;
+  symbols: boolean;
+}
+
+export interface PasswordOptions {
+  length: number;
+  sets: PasswordSetToggle;
+  /** Strip the easily-misread characters listed in `PW_AMBIGUOUS`. */
+  avoidAmbiguous: boolean;
+  /** Guarantee at least one character from every selected set. */
+  requireEverySet: boolean;
+  /** Characters to drop from every set, on top of anything else. */
+  exclude: string;
+}
+
+export const MAX_PASSWORD_LENGTH = 256;
+export const MAX_PASSWORDS = 200;
+
+const randomByte = new Uint8Array(1);
+const randomWide = new Uint32Array(1);
+
+/**
+ * Uniform integer in `[0, maxExclusive)` drawn from the platform CSPRNG.
+ *
+ * `byte % n` is *not* uniform: it favours the first `256 % n` values, so for a
+ * 94-character alphabet four characters would be measurably more likely than
+ * the rest. Rejection sampling throws away the unusable tail of the byte range
+ * instead, which costs a few extra draws and removes the bias entirely.
+ */
+function randomIndex(maxExclusive: number): number {
+  if (maxExclusive <= 1) return 0;
+
+  if (maxExclusive <= 256) {
+    const limit = 256 - (256 % maxExclusive);
+    let byte = 256;
+    while (byte >= limit) {
+      crypto.getRandomValues(randomByte);
+      byte = randomByte[0]!;
+    }
+    return byte % maxExclusive;
+  }
+
+  const span = 2 ** 32;
+  const wideLimit = span - (span % maxExclusive);
+  let value = span;
+  while (value >= wideLimit) {
+    crypto.getRandomValues(randomWide);
+    value = randomWide[0]!;
+  }
+  return value % maxExclusive;
+}
+
+/** Fisher-Yates over the already-chosen characters, so the pinned ones land anywhere. */
+function shuffleInPlace(chars: string[]): string[] {
+  for (let i = chars.length - 1; i > 0; i -= 1) {
+    const j = randomIndex(i + 1);
+    const held = chars[i]!;
+    chars[i] = chars[j]!;
+    chars[j] = held;
+  }
+  return chars;
+}
+
+/**
+ * The selected sets after exclusions and the ambiguous-character filter, in a
+ * fixed order. Sets emptied by the filters are dropped rather than producing a
+ * password with no characters from them.
+ */
+export function passwordPools(
+  options: PasswordOptions,
+): { id: PasswordSetId; chars: string }[] {
+  const excluded = new Set(options.exclude);
+
+  return (Object.keys(PW_POOLS) as PasswordSetId[])
+    .filter((id) => options.sets[id])
+    .map((id) => {
+      let chars = "";
+      for (const char of PW_POOLS[id]) {
+        if (excluded.has(char)) continue;
+        if (options.avoidAmbiguous && PW_AMBIGUOUS.has(char)) continue;
+        chars += char;
+      }
+      return { id, chars };
+    })
+    .filter((pool) => pool.chars.length > 0);
+}
+
+/** Length actually used, after the `requireEverySet` floor is applied. */
+export function clampPasswordLength(
+  length: number,
+  poolCount: number,
+  requireEverySet: boolean,
+): number {
+  const floor = requireEverySet ? Math.max(1, poolCount) : 1;
+  const value = Number.isFinite(length) ? Math.floor(length) : floor;
+  return Math.min(MAX_PASSWORD_LENGTH, Math.max(floor, value));
+}
+
+export interface PasswordStats {
+  /** Entropy in bits for the exact construction `generatePasswords` uses. */
+  bits: number;
+  /** Combined alphabet size across the surviving pools. */
+  alphabet: number;
+  /** Bits contributed by each freely chosen character. */
+  perChar: number;
+  /** How many characters `requireEverySet` pins to a specific set. */
+  pinned: number;
+}
+
+/**
+ * Entropy for this configuration.
+ *
+ * When `requireEverySet` is on, the generator places one character from each
+ * set first and fills the rest from the combined alphabet, so the count is
+ * exact rather than the usual `length * log2(alphabet)` approximation — which
+ * over-reports, because it ignores the constraint it is supposed to price in.
+ */
+export function passwordStats(options: PasswordOptions): PasswordStats {
+  const pools = passwordPools(options);
+  const alphabet = pools.reduce((sum, pool) => sum + pool.chars.length, 0);
+
+  if (alphabet === 0) return { bits: 0, alphabet: 0, perChar: 0, pinned: 0 };
+
+  const length = clampPasswordLength(options.length, pools.length, options.requireEverySet);
+  const pinned = options.requireEverySet ? Math.min(pools.length, length) : 0;
+  const perChar = Math.log2(alphabet);
+  const pinnedBits = pools
+    .slice(0, pinned)
+    .reduce((sum, pool) => sum + Math.log2(pool.chars.length), 0);
+
+  return { bits: pinnedBits + (length - pinned) * perChar, alphabet, perChar, pinned };
+}
+
+/**
+ * Generate `count` passwords. Uniform over the configured alphabet, with one
+ * character from each selected set guaranteed when asked for.
+ */
+export function generatePasswords(count: number, options: PasswordOptions): string[] {
+  const pools = passwordPools(options);
+  if (pools.length === 0) return [];
+
+  const length = clampPasswordLength(options.length, pools.length, options.requireEverySet);
+  const total = Math.max(1, Math.min(MAX_PASSWORDS, Math.floor(count)));
+  const combined = pools.map((pool) => pool.chars).join("");
+  const pinned = options.requireEverySet ? Math.min(pools.length, length) : 0;
+
+  const out: string[] = [];
+  for (let i = 0; i < total; i += 1) {
+    const chars: string[] = [];
+    for (let p = 0; p < pinned; p += 1) {
+      const pool = pools[p]!.chars;
+      chars.push(pool.charAt(randomIndex(pool.length)));
+    }
+    while (chars.length < length) {
+      chars.push(combined.charAt(randomIndex(combined.length)));
+    }
+    out.push(shuffleInPlace(chars).join(""));
+  }
+
+  return out;
+}
+
+export type AttackModelId =
+  | "online-throttled"
+  | "online-unthrottled"
+  | "offline-slow-hash"
+  | "offline-fast-hash";
+
+export interface AttackModel {
+  id: AttackModelId;
+  label: string;
+  /** Guesses per second. */
+  rate: number;
+  /** What this rate actually assumes — the number alone is meaningless. */
+  note: string;
+}
+
+/**
+ * Four rates, because "how long does this take to crack" has no single answer.
+ * The offline rows assume the attacker already has the hash; the online rows
+ * assume they are still going through a login form.
+ */
+export const ATTACK_MODELS: readonly AttackModel[] = [
+  {
+    id: "online-throttled",
+    label: "Login form, rate-limited",
+    rate: 10 / 3600,
+    note: "10 guesses an hour — a server enforcing lockout and backoff.",
+  },
+  {
+    id: "online-unthrottled",
+    label: "Login form, no limits",
+    rate: 10,
+    note: "10 guesses a second — a form with no lockout, CAPTCHA or backoff.",
+  },
+  {
+    id: "offline-slow-hash",
+    label: "Offline, bcrypt or Argon2",
+    rate: 1e4,
+    note: "10 thousand a second — a stolen database hashed with a memory-hard KDF at a low cost factor.",
+  },
+  {
+    id: "offline-fast-hash",
+    label: "Offline, MD5 or SHA-1",
+    rate: 1e10,
+    note: "10 billion a second — a stolen database hashed with a fast, unsalted digest.",
+  },
+];
+
+const TIME_UNITS: readonly (readonly [number, string])[] = [
+  [1, "second"],
+  [60, "minute"],
+  [3_600, "hour"],
+  [86_400, "day"],
+  [2_629_800, "month"],
+  [31_557_600, "year"],
+  [315_576_000, "century"],
+];
+
+function compact(value: number): string {
+  if (value >= 1_000) return Math.round(value).toLocaleString("en");
+  if (value >= 10) return String(Math.round(value));
+  return value.toFixed(1);
+}
+
+/**
+ * Time to exhaust half the keyspace at `rate` guesses per second — the average
+ * case, which is what an attacker actually faces. An average over one sample is
+ * not a guarantee: with a single 60-bit password the attacker may get lucky and
+ * find yours in the first few thousand attempts.
+ */
+export function crackTimeSeconds(bits: number, rate: number): number {
+  if (bits <= 0 || rate <= 0) return 0;
+  return 2 ** (bits - 1) / rate;
+}
+
+export function formatCrackTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "instantly";
+  const unit = TIME_UNITS.find(([limit]) => seconds < limit) ?? [Infinity, "aeon"];
+  const value = seconds / unit[0];
+  return `${compact(value)} ${unit[1]}${value >= 2 ? "s" : ""}`;
+}
+
+export type PasswordStrength = "very-weak" | "weak" | "fair" | "strong" | "very-strong";
+
+/**
+ * Bands on entropy alone, at the usual rough edges: under 28 bits falls to a
+ * script in seconds, 50 is comfortable for a login, 100+ is beyond any offline
+ * attack that holds the hash. The UI shows the bit count alongside the label so
+ * the band is never the only evidence.
+ */
+export function passwordStrength(bits: number): PasswordStrength {
+  if (bits < 28) return "very-weak";
+  if (bits < 50) return "weak";
+  if (bits < 75) return "fair";
+  if (bits < 110) return "strong";
+  return "very-strong";
+}
+
+export function passwordsToCsv(passwords: readonly string[], options: PasswordOptions): string {
+  const stats = passwordStats(options);
+  const header = "password,length,entropy_bits,alphabet_size";
+  const rows = passwords.map(
+    (password) => `"${password}",${password.length},${stats.bits.toFixed(1)},${stats.alphabet}`,
+  );
+  return [header, ...rows].join("\n");
+}

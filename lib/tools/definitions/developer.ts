@@ -658,6 +658,74 @@ export const DEVELOPER_TOOLS: readonly Tool[] = [
     related: ["uuid-generator", "base64-encoder", "jwt-decoder", "api-tester"],
   },
   {
+    id: "password-generator",
+    name: "Password Generator",
+    slug: "password-generator",
+    category: "developer",
+    description:
+      "Generate strong random passwords in your browser, with an exact entropy count, character-class controls and crack times under four attack models.",
+    intro:
+      "Uniformly random passwords from crypto.getRandomValues, never Math.random. Pick your character classes, see the entropy actually achieved, and compare it against how fast an attacker could realistically guess it.",
+    icon: "Unlock",
+    keywords: [
+      "password",
+      "passphrase",
+      "secure password",
+      "random password",
+      "strong password",
+      "entropy",
+      "random string",
+      "secret",
+    ],
+    route: "/tools/developer/password-generator",
+    processing: "local",
+    status: "stable",
+    popular: true,
+    addedOn: "2026-10-11",
+    actionLabel: "Generate",
+    features: [
+      "Unbiased characters via rejection sampling, so no symbol is more likely than another",
+      "Lowercase, uppercase, digits and symbols, each independently switchable",
+      "Optional one-of-each guarantee, and a blocklist field for characters you must avoid",
+      "Exact entropy in bits, not the usual length × log2(alphabet) approximation",
+      "Crack times against a throttled login form, an open one, bcrypt/Argon2 and unsalted MD5",
+      "Up to 200 at a time, exportable as .txt or .csv",
+    ],
+    howItWorks: [
+      "Choose a length, the character classes, and any characters to avoid.",
+      "Press Generate. The entropy figure updates as you change the settings.",
+      "Copy one, or copy the whole batch.",
+    ],
+    faq: [
+      {
+        question: "Does this send my passwords anywhere?",
+        answer:
+          "No. Generation uses crypto.getRandomValues in this tab and nothing is transmitted, logged or stored. Copy a password out of the page and close it and it is gone — keep it in a password manager, which is the only place it is safe to keep.",
+      },
+      {
+        question: "Why does a long lowercase password score lower than a short mixed one?",
+        answer:
+          "Because entropy depends on how many choices each character has, not on how long the password is. Twenty lowercase letters are 20 × log2(26) ≈ 94 bits; sixteen characters drawn from the full 90-character alphabet are 16 × log2(90) ≈ 105 bits. Switching classes on is usually a bigger win than adding characters.",
+      },
+      {
+        question: "What does the 'one of each' option actually do to the entropy count?",
+        answer:
+          "It lowers it, and the number shown reflects that. The generator places one character from each selected set first and fills the rest from the combined alphabet, so those pinned characters contribute log2(size of that set) rather than log2(the whole alphabet). Most tools quietly ignore this and report the higher, wrong figure.",
+      },
+      {
+        question: "Which crack time should I care about?",
+        answer:
+          "The offline rows, because they are the ones that decide how much a password is worth. Those assume an attacker already holds a hash of it. If your service stores passwords with bcrypt or Argon2, read the bcrypt row; if it stores an unsalted MD5 or SHA-1 digest, assume the fast-hash row and treat a password under about 60 bits as already compromised.",
+      },
+      {
+        question: "Are the average crack times a guarantee?",
+        answer:
+          "No. They are the expected time to find one password when an attacker exhausts half the keyspace in order. A single 60-bit password is close to a coin flip: the attacker may find yours on the first few thousand attempts, or never get near it. Password strength is an expectation, not a property of the individual string.",
+      },
+    ],
+    related: ["hash-generator", "uuid-generator", "base64-encoder", "jwt-decoder"],
+  },
+  {
     id: "jwt-decoder",
     name: "JWT Decoder",
     slug: "jwt-decoder",
