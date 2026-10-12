@@ -2,13 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { Clock } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Menu, Moon, Search, Sun, X } from "lucide-react";
-import { GitHubIcon } from "@/components/ui/BrandIcons";
 import { cn } from "@/lib/utils/cn";
 import { CATEGORIES } from "@/lib/tools/categories";
 import { TOOL_COUNT } from "@/lib/tools/registry";
-import { SITE } from "@/lib/site";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useTheme } from "./theme-provider";
@@ -135,18 +134,31 @@ export function Navbar() {
            * viewport with room to spare.
            */}
           <div className="ml-auto flex items-center gap-1 lg:ml-0">
+            <HeaderClock />
+            {/*
+             * Search is the one control here that widens with its content, so it
+             * is `size="md"` (auto width) rather than `size="icon"`, which pins
+             * the button to a fixed `w-10`.
+             *
+             * It used to be `size="icon"` and carried a "Search" label plus a
+             * `Ctrl K` badge, both revealed at `xl`. Inside a fixed 40px box those
+             * had nowhere to go and were clipped — the label simply never fit.
+             * Below `xl` the label and badge are hidden and the explicit
+             * `w-10 px-0` restores the square icon-button footprint, so the
+             * cluster stays exactly as compact as it was on smaller screens.
+             */}
             <Tooltip content="Search tools (Ctrl + K)" side="bottom">
               <Button
                 variant="ghost"
-                size="icon"
+                size="md"
                 onClick={() => setSearchOpen(true)}
                 aria-label="Search tools"
                 aria-keyshortcuts="Control+K"
-                className="gap-2"
+                className="w-10 justify-center px-0 xl:w-auto xl:justify-start xl:px-4"
               >
-                <Search className="size-4" aria-hidden="true" />
+                <Search className="size-4 shrink-0" aria-hidden="true" />
                 <span className="hidden xl:inline">Search</span>
-                <kbd className="hidden rounded border border-[var(--surface-line-strong)] bg-[var(--surface-card-2)] px-1 py-0.5 font-mono text-[10px] text-[var(--text-muted)] xl:inline">
+                <kbd className="hidden shrink-0 rounded border border-[var(--surface-line-strong)] bg-[var(--surface-card-2)] px-1 py-0.5 font-mono text-[10px] text-[var(--text-muted)] xl:inline">
                   Ctrl K
                 </kbd>
               </Button>
@@ -162,18 +174,6 @@ export function Navbar() {
                 {/* Both icons render; the theme stylesheet reveals one, so SSR has no flash. */}
                 <Sun className="dark-only size-4" aria-hidden="true" />
                 <Moon className="light-only size-4" aria-hidden="true" />
-              </Button>
-            </Tooltip>
-
-            <Tooltip content="Balu Tools on GitHub">
-              <Button
-                variant="ghost"
-                size="icon"
-                href={SITE.social.github}
-                target="_blank"
-                aria-label="Balu Tools on GitHub (opens in a new tab)"
-              >
-                <GitHubIcon className="size-4" />
               </Button>
             </Tooltip>
 
@@ -294,5 +294,116 @@ export function Navbar() {
 
       <SearchDialog open={searchOpen} onOpenChange={setSearchOpen} />
     </>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Live header clock                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The visitor's real local time, date and year, ticking once a second.
+ *
+ * Why it exists: it is the one piece of ambient information the header has no
+ * home for, and it is genuinely useful on a tools site — "what day is it"
+ * decides whether to look at New Tools, and the clock is a fast sanity check
+ * that the page is live.
+ *
+ * Hydration: a clock is the classic way to ship a React mismatch, because the
+ * server has one "now" and the browser has another. So nothing clock-dependent
+ * renders on the server — the state starts at 0, and the first real value is
+ * written from a `setTimeout(0)` after mount. Until then the element renders a
+ * fixed-width placeholder so the header does not visibly jump when it fills in.
+ * This is the same pattern `TimestampConverterWorkspace` uses.
+ *
+ * Timezone: intentionally the visitor's own zone, read via `Intl` rather than
+ * UTC or a fixed offset. A clock that shows the wrong local time is worse than
+ * no clock.
+ */
+function HeaderClock() {
+  const [now, setNow] = React.useState(0);
+
+  React.useEffect(() => {
+    const start = setTimeout(() => setNow(Date.now()), 0);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      clearTimeout(start);
+      clearInterval(timer);
+    };
+  }, []);
+
+  // Stable pieces are built once; only the second changes each tick.
+  const time = React.useMemo(
+    () =>
+      now === 0
+        ? ""
+        : new Intl.DateTimeFormat(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+          }).format(now),
+    [now],
+  );
+
+  const date = React.useMemo(
+    () =>
+      now === 0
+        ? ""
+        : new Intl.DateTimeFormat(undefined, {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          }).format(now),
+    [now],
+  );
+
+  const zone = React.useMemo(() => {
+    if (now === 0) return "";
+    try {
+      // `short` keeps it to something like "GMT+5:30" — a label, not a sentence.
+      const part = new Intl.DateTimeFormat(undefined, { timeZoneName: "short" })
+        .formatToParts(now)
+        .find((piece) => piece.type === "timeZoneName");
+      return part?.value ?? "";
+    } catch {
+      return "";
+    }
+  }, [now]);
+
+  const ready = now !== 0;
+
+  return (
+    <div
+      className="hidden items-center gap-2 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] px-2.5 py-1 text-[12px] leading-none text-[var(--text-muted)] lg:flex"
+      // Announced politely so a screen reader reads it without interrupting.
+      role="timer"
+      aria-live="off"
+    >
+      <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+      <span className="font-mono tabular-nums text-[var(--text-ink)]">
+        {ready ? time : "--:--:--"}
+      </span>
+      {/*
+       * The date and year are the wide part, and they are the first thing that
+       * should go when the row is tight.
+       *
+       * The navbar row is at its most crowded between `lg` (1024px) and `xl`
+       * (1280px): that is exactly where the desktop nav links and all three
+       * icon buttons are visible at once, and adding a full date there pushes
+       * the row past the viewport. So `lg` shows the clock alone and `xl` adds
+       * the rest. The separator is hidden with it so no dangling pipe is left.
+       */}
+      <span className="hidden items-center gap-2 xl:flex">
+        <span aria-hidden="true" className="text-[var(--surface-line-strong)]">
+          |
+        </span>
+        <span className="whitespace-nowrap">
+          {ready ? date : "-- --- ----"}
+          {ready && zone ? <span className="ml-1.5 opacity-70">{zone}</span> : null}
+        </span>
+      </span>
+    </div>
   );
 }

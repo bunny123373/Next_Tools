@@ -221,7 +221,8 @@ variable** — those are inlined into the browser bundle.
 | `ADMIN_SECRET` | Unlocks `/admin` |
 | `AUTH_SECRET` | Session-signed admin access |
 | `TOOL_REQUESTS_ENDPOINT` | Forwards submissions to your own service instead of MongoDB |
-| `STRIPE_SECRET_KEY` | Subscriptions (provider adapter not shipped) |
+| `STRIPE_SECRET_KEY` | One-time donations on `/support` (unlocks nothing) |
+| `STRIPE_WEBHOOK_SECRET` | Verifies Stripe donation webhooks |
 | `NEXT_PUBLIC_ANALYTICS_ENDPOINT` | Anonymous aggregated usage counters |
 | `NEXT_PUBLIC_CROSS_ORIGIN_ISOLATED` | COOP/COEP headers, only for ffmpeg.wasm |
 
@@ -235,9 +236,10 @@ These are gaps **on purpose**, and the UI says so rather than hiding them:
 
 - **No accounts.** Favourites and history are browser-local. A half-built password system is
   worse than none, so sign-in waits until it can be done properly.
-- **No payments.** `lib/billing/provider.ts` defines the plans and the entitlement checks, but
-  checkout refuses with `not_configured`. There is no demo mode and no path that can mark a
-  plan as paid.
+- **No paid plans.** `lib/billing/provider.ts` defines the Pro/Business plans and the entitlement
+  checks, but checkout for them refuses with `not_configured`. There is no demo mode and no path
+  that can mark a plan as paid. `/support` does take **one-time donations**, which unlock nothing
+  and change no limit — the tools are identical either way.
 - **No usage analytics without a database.** `/admin` reports that the data is unavailable
   rather than rendering a plausible-looking chart.
 - **The tool builder does not generate code.** It maps a description onto a closed catalogue

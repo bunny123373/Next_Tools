@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { GitHubIcon, InstagramIcon, YouTubeIcon } from "@/components/ui/BrandIcons";
 import { PageShell, Prose, Callout } from "@/components/layout/PageShell";
 import { ContactForm } from "@/components/forms/ContactForm";
 import { SITE } from "@/lib/site";
@@ -12,12 +11,6 @@ export const metadata: Metadata = {
   ),
   alternates: { canonical: "/contact" },
 };
-
-const SOCIALS = [
-  { name: "GitHub", href: SITE.social.github, icon: GitHubIcon, handle: "github.com/balu-tools" },
-  { name: "YouTube", href: SITE.social.youtube, icon: YouTubeIcon, handle: "youtube.com/@balutools" },
-  { name: "Instagram", href: SITE.social.instagram, icon: InstagramIcon, handle: "instagram.com/balutools" },
-] as const;
 
 export default function ContactPage() {
   return (
@@ -46,40 +39,6 @@ export default function ContactPage() {
             {SITE.contactEmail}
           </a>
         </p>
-
-        <h2>Social</h2>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          {SOCIALS.map((social) => (
-            <a
-              key={social.name}
-              href={social.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center gap-3 rounded-xl border border-[var(--surface-line)] bg-[var(--surface-card)] px-3.5 py-3 transition-colors hover:border-[var(--surface-line-strong)]"
-            >
-              <span
-                aria-hidden="true"
-                className="grid size-8 shrink-0 place-items-center rounded-lg border border-[var(--surface-line)] bg-[var(--surface-card-2)] text-[var(--text-muted)] transition-colors group-hover:text-brand-500"
-              >
-                <social.icon className="size-4" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-[13px] font-medium text-[var(--text-ink)]">
-                  {social.name}
-                </span>
-                <span className="block truncate text-[11px] text-[var(--text-muted)]">
-                  {social.handle}
-                </span>
-              </span>
-            </a>
-          ))}
-        </div>
-
-        <Callout tone="warning" title="These are placeholder links">
-          The social URLs in this deployment are placeholders configured in{" "}
-          <code className="font-mono text-[12px]">lib/site.ts</code>. If the link 404s, that is
-          because nobody has pointed it at a real profile yet — not because the account was deleted.
-        </Callout>
 
         <h2>Reporting a bug</h2>
         <p>To get a fix quickly, include:</p>

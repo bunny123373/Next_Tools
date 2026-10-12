@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { GitHubIcon, InstagramIcon, YouTubeIcon } from "@/components/ui/BrandIcons";
 import { CATEGORIES } from "@/lib/tools/categories";
 import { SITE } from "@/lib/site";
 
@@ -19,6 +18,7 @@ const COLUMNS = [
       { label: "FAQ", href: "/faq" },
       { label: "Privacy", href: "/privacy" },
       { label: "Terms", href: "/terms" },
+      { label: "Support us", href: "/support" },
     ],
   },
   {
@@ -53,36 +53,7 @@ export function Footer() {
               {SITE.pitch}
             </p>
 
-            <div className="mt-5 flex items-center gap-1">
-              <a
-                href={SITE.social.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Balu Tools on GitHub"
-                className="grid size-9 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)]"
-              >
-                <GitHubIcon className="size-4" />
-              </a>
-              <a
-                href={SITE.social.youtube}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Balu Tools on YouTube"
-                className="grid size-9 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)]"
-              >
-                <YouTubeIcon className="size-4" />
-              </a>
-              <a
-                href={SITE.social.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Balu Tools on Instagram"
-                className="grid size-9 place-items-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-card-2)] hover:text-[var(--text-ink)]"
-              >
-                <InstagramIcon className="size-4" />
-              </a>
             </div>
-          </div>
 
           {COLUMNS.map((column) => (
             <nav key={column.title} aria-label={column.title}>
