@@ -6440,13 +6440,17 @@ const TIME_UNITS: readonly (readonly [number, string])[] = [
   [86_400, "day"],
   [2_629_800, "month"],
   [31_557_600, "year"],
-  [315_576_000, "century"],
+  [3_155_760_000, "century"],
 ];
 
 function compact(value: number): string {
   if (value >= 1_000) return Math.round(value).toLocaleString("en");
   if (value >= 10) return String(Math.round(value));
-  return value.toFixed(1);
+  if (value >= 1) return value.toFixed(1);
+  // Below one unit — e.g. "0.0175 century" — fixed notation would round to a
+  // misleading "0.0". Switch to exponential only when it is the honest choice.
+  if (value < 0.01) return value.toExponential(1);
+  return value.toFixed(2);
 }
 
 /**
@@ -6462,9 +6466,18 @@ export function crackTimeSeconds(bits: number, rate: number): number {
 
 export function formatCrackTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "instantly";
-  const unit = TIME_UNITS.find(([limit]) => seconds < limit) ?? [Infinity, "aeon"];
-  const value = seconds / unit[0];
-  return `${compact(value)} ${unit[1]}${value >= 2 ? "s" : ""}`;
+
+  const unit = TIME_UNITS.find(([limit]) => seconds < limit);
+  if (unit) {
+    const value = seconds / unit[0];
+    return `${compact(value)} ${unit[1]}${value >= 2 ? "s" : ""}`;
+  }
+
+  // Past a century the figure stops being useful as prose, and dividing by the
+  // last unit would render "0.0". Switch to years, and to exponential notation
+  // once the count of years is itself unreadable.
+  const years = seconds / 31_557_600;
+  return years >= 1e6 ? `${years.toExponential(1)} years` : `${compact(years)} years`;
 }
 
 export type PasswordStrength = "very-weak" | "weak" | "fair" | "strong" | "very-strong";
