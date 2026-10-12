@@ -119,6 +119,10 @@ export interface ConvertOptions {
   channels?: 1 | 2;
   /** H.264 quality for MP4 output. Lower is better quality and a bigger file. */
   crf?: number;
+  /** Keep only [startSec, endSec]. Omit or omit `endSec` for "to the end". */
+  trim?: { startSec?: number; endSec?: number };
+  /** Normalise loudness to the streaming target (-14 LUFS). */
+  normalize?: boolean;
   /** Progress sink; receives 0–1. */
   onProgress?: (ratio: number) => void;
   /** Distinguishes "downloading the 31 MB core" from "encoding your file". */
@@ -432,6 +436,8 @@ export function buildArgs(options: {
   sampleRateHz: number;
   channels: 1 | 2;
   crf: number;
+  trim?: { startSec?: number; endSec?: number };
+  normalize?: boolean;
 }): string[] {
   const {
     inputName,
@@ -441,11 +447,47 @@ export function buildArgs(options: {
     sampleRateHz,
     channels,
     crf,
+    trim,
+    normalize,
   } = options;
+
+  /**
+   * Input-side seek.
+   *
+   * `-ss` goes *before* `-i` so FFmpeg seeks by jumping to the nearest keyframe
+   * and only decodes from there. Placed after `-i` it would decode the entire
+   * lead-in and discard it, which on a long file costs minutes for nothing.
+   * The cut lands on a keyframe rather than the exact frame, which is
+   * imperceptible at the start of a trimmed clip.
+   */
+  const seek =
+    trim?.startSec && trim.startSec > 0
+      ? ["-ss", trim.startSec.toFixed(3)]
+      : [];
+
+  /**
+   * `-t` (duration) rather than `-to` (absolute end) because `-t` is measured
+   * from wherever the seek landed, so the same value works whether or not the
+   * user set a start point. Omitting it converts to the end of the file.
+   */
+  const duration =
+    trim?.endSec !== undefined && trim.startSec !== undefined && trim.endSec > trim.startSec
+      ? ["-t", (trim.endSec - trim.startSec).toFixed(3)]
+      : [];
+
+  /**
+   * EBU R128 normalisation to -14 LUFS, the target every streaming platform
+   * normalises to, so the result will not need turning down on playback.
+   *
+   * `-af` applies to the audio stream only, leaving video untouched — which is
+   * what makes it safe to run on an MP4.
+   */
+  const loudness = normalize ? ["-af", "loudnorm=I=-14:TP=-1.5:LRA=11"] : [];
 
   const audio = [
     "-map_metadata",
     "-1", // strip identifying metadata
+    ...loudness,
     "-b:a",
     `${bitrateKbps}k`,
     "-ar",
@@ -456,8 +498,10 @@ export function buildArgs(options: {
 
   if (format === "mp3") {
     return [
+      ...seek,
       "-i",
       inputName,
+      ...duration,
       "-vn", // drop any video stream; MP3 is audio-only
       ...audio,
       "-f",
@@ -483,8 +527,10 @@ export function buildArgs(options: {
    * the whole file before it will play anything.
    */
   return [
+    ...seek,
     "-i",
     inputName,
+    ...duration,
     ...audio,
     "-c:v",
     "libx264",
@@ -502,6 +548,20 @@ export function buildArgs(options: {
   ];
 }
 
+/** Parses "1:23", "83", "1:23.5" or "" into seconds. Returns undefined when blank/invalid. */
+export function parseTimecode(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parts = trimmed.split(":");
+  if (parts.length > 3) return undefined;
+  let seconds = 0;
+  for (const part of parts) {
+    if (!/^\d+(\.\d+)?$/.test(part)) return undefined;
+    seconds = seconds * 60 + Number(part);
+  }
+  return Number.isFinite(seconds) ? seconds : undefined;
+}
+
 export async function convertMedia(file: File, options: ConvertOptions = {}): Promise<ConvertResult> {
   const {
     format = "mp3",
@@ -509,6 +569,8 @@ export async function convertMedia(file: File, options: ConvertOptions = {}): Pr
     sampleRateHz = 44100,
     channels = 2,
     crf = 28,
+    trim,
+    normalize = false,
     onProgress,
     onPhase,
     signal,
@@ -557,6 +619,8 @@ export async function convertMedia(file: File, options: ConvertOptions = {}): Pr
         sampleRateHz,
         channels,
         crf,
+        trim,
+        normalize,
       }),
     );
 

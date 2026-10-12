@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AudioLines, Link2, Music, ShieldCheck, TriangleAlert, Video } from "lucide-react";
+import { AudioLines, Check, Link2, Music, ShieldCheck, TriangleAlert, Video } from "lucide-react";
 
 import { ToolShell } from "@/components/tools/ToolShell";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   loadFFmpeg,
   MAX_INPUT_BYTES,
   OUTPUT_FORMATS,
+  parseTimecode,
   resetFFmpeg,
   type ConversionPhase,
   type LinkState,
@@ -91,6 +92,27 @@ export default function YoutubeAudioWorkspace() {
   const [sampleRate, setSampleRate] = React.useState("44100");
   const [channels, setChannels] = React.useState<"1" | "2">("2");
   const [crf, setCrf] = React.useState("28");
+  const [trimStart, setTrimStart] = React.useState("");
+  const [trimEnd, setTrimEnd] = React.useState("");
+  const [normalize, setNormalize] = React.useState(false);
+
+  /**
+   * Trim inputs are free text, so the error has to be derived from what the
+   * user typed rather than stored. Empty means "keep the whole file", which is
+   * why `undefined` and `0` are different: `-ss 0` is a no-op we must not emit.
+   */
+  const trimStartSec = trimStart.trim() ? parseTimecode(trimStart) : undefined;
+  const trimEndSec = trimEnd.trim() ? parseTimecode(trimEnd) : undefined;
+  const trimError =
+    trimStart.trim() && trimStartSec === undefined
+      ? "Use mm:ss or seconds, for example 1:23."
+      : trimEnd.trim() && trimEndSec === undefined
+        ? "Use mm:ss or seconds, for example 4:05."
+        : trimStartSec !== undefined &&
+            trimEndSec !== undefined &&
+            trimEndSec <= trimStartSec
+          ? "The end has to be after the start."
+          : null;
 
   const abortRef = React.useRef<AbortController | null>(null);
   /**
@@ -200,7 +222,7 @@ export default function YoutubeAudioWorkspace() {
 
   const convert = async () => {
     const targets = queue;
-    if (targets.length === 0 || busy) return;
+    if (targets.length === 0 || busy || trimError) return;
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -229,6 +251,11 @@ export default function YoutubeAudioWorkspace() {
             sampleRateHz: Number(sampleRate),
             channels: Number(channels) as 1 | 2,
             crf: Number(crf),
+            trim:
+              trimError || (trimStartSec === undefined && trimEndSec === undefined)
+                ? undefined
+                : { startSec: trimStartSec, endSec: trimEndSec },
+            normalize,
             signal: controller.signal,
             onPhase: (next) => {
               setPhase(next);
@@ -688,6 +715,76 @@ export default function YoutubeAudioWorkspace() {
                   </Select>
                 </div>
               ) : null}
+
+              {/* Trim + loudness ------------------------------------------ */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[13px] font-medium text-[var(--text-ink)]">
+                    Trim <span className="font-normal text-[var(--text-muted)]">(optional)</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      aria-label="Trim start"
+                      placeholder="Start 1:23"
+                      value={trimStart}
+                      disabled={busy}
+                      invalid={Boolean(trimError)}
+                      onChange={(event) => setTrimStart(event.target.value)}
+                      className="min-w-0"
+                    />
+                    <span aria-hidden="true" className="text-[var(--text-muted)]">
+                      &rarr;
+                    </span>
+                    <Input
+                      aria-label="Trim end"
+                      placeholder="End 4:05"
+                      value={trimEnd}
+                      disabled={busy}
+                      invalid={Boolean(trimError)}
+                      onChange={(event) => setTrimEnd(event.target.value)}
+                      className="min-w-0"
+                    />
+                  </div>
+                  <p className={`text-[11px] ${trimError ? "text-brand-500" : "text-[var(--text-muted)]"}`}>
+                    {trimError ?? "Leave blank to keep the whole file. mm:ss or plain seconds."}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[13px] font-medium text-[var(--text-ink)]">Loudness</span>
+                  <label
+                    className={cn(
+                      "flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)] px-3 py-2.5",
+                      busy && "cursor-not-allowed opacity-50",
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={normalize}
+                      disabled={busy}
+                      onChange={(event) => setNormalize(event.target.checked)}
+                      className="peer sr-only"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-[5px] border",
+                        "border-[var(--surface-line-strong)] transition-colors duration-150",
+                        "peer-checked:border-emerald-500 peer-checked:bg-emerald-500",
+                        "peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500/40",
+                      )}
+                    >
+                      <Check className="size-3 text-white opacity-0 transition-opacity peer-checked:opacity-100" strokeWidth={3.5} />
+                    </span>
+                    <span className="min-w-0 text-[13px] leading-snug">
+                      <span className="text-[var(--text-ink)]">Normalise to &minus;14 LUFS</span>
+                      <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">
+                        EBU R128, the level every streaming platform targets.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -779,7 +876,7 @@ export default function YoutubeAudioWorkspace() {
           {/* Idle actions ------------------------------------------------ */}
           {queue.length > 0 && !result && !busy && !error ? (
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void convert()}>
+              <Button onClick={() => void convert()} disabled={Boolean(trimError)}>
                 <Music className="size-4" aria-hidden="true" />
                 Convert {queue.length > 1 ? `${queue.length} files` : `to ${formatInfo(format).label}`}
               </Button>

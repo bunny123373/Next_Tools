@@ -108,6 +108,13 @@ export default function YoutubeAudioPage() {
             picture, then convert the lot and download the results as a zip. The whole export is
             processed locally — Google&rsquo;s zip never leaves your machine.
           </p>
+          <p>
+            While you are there, two controls are worth knowing about. <strong className="text-[var(--text-ink)]">Trim</strong>{" "}
+            cuts to a start and end time, which is how you pull a single track out of a long video
+            without re-encoding the rest of it. <strong className="text-[var(--text-ink)]">Normalise</strong>{" "}
+            levels the audio to &minus;14 LUFS, the loudness every streaming platform targets, so the
+            result doesn&rsquo;t need turning down on playback.
+          </p>
         </div>
       </section>
     </div>
