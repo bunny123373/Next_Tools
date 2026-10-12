@@ -1194,4 +1194,76 @@ export const DEVELOPER_TOOLS: readonly Tool[] = [
     ],
     related: ["markdown-editor", "html-formatter", "json-formatter"],
   },
+  {
+    id: "zip-password-recovery",
+    name: "ZIP Password Recovery",
+    slug: "zip-password",
+    category: "developer",
+    description:
+      "Recover a ZIP password you have forgotten. Tries likely passwords in your browser and extracts the files — works only on weak passwords, and says so when it fails.",
+    intro:
+      "For an archive of your own that you cannot get into. It lists what is inside, tries the passwords people actually choose, and hands back the files once one opens it. It cannot break a strong password, and it will tell you that rather than keep going.",
+    icon: "FileArchive",
+    keywords: [
+      "zip password",
+      "forgot zip password",
+      "recover zip password",
+      "unlock zip",
+      "encrypted zip",
+      "open password protected zip",
+      "zip password cracker",
+    ],
+    route: "/tools/developer/zip-password",
+    processing: "local",
+    status: "stable",
+    addedOn: "2026-10-12",
+    actionLabel: "Try to recover",
+    features: [
+      "Lists the archive contents before you do anything — legacy ZIPs expose their filenames with no password at all",
+      "Tries around 550 likely passwords in your browser, typically finishing in well under a second",
+      "Your own words first: the file name, the project, the year, each also tried capitalised and with common suffixes",
+      "Handles both legacy ZipCrypto and modern AES archives, and names which one it found",
+      "Works fully offline — the archive is never uploaded, and nothing you type is sent anywhere",
+      "Reports failure honestly. A strong password returns no match instead of a plausible-looking wrong answer",
+    ],
+    howItWorks: [
+      "Drop in the ZIP you cannot open.",
+      "The archive is read in this tab and its entries and encryption type are listed.",
+      "Your own words plus a list of common passwords are tried against the smallest encrypted entry, which is the fastest one to test.",
+      "On a match, every entry is extracted and you get the files back as normal downloads.",
+    ],
+    faq: [
+      {
+        question: "Will this get my password back?",
+        answer:
+          "If it is a weak password, very likely — the kind people actually choose, like a word plus a year or a keyboard pattern. If it is genuinely random or long, no. A strong password is not guessable by any list, and no tool running in a browser tab will change that.",
+      },
+      {
+        question: "What if it finds nothing?",
+        answer:
+          "Then the password is not in the list, and we would rather tell you that in a second than keep your browser busy for an hour on a search we already know will fail. Try your own words through the word box — the project name, the year, the company. That is the guess that most often works.",
+      },
+      {
+        question: "Why can it sometimes list the contents but not open them?",
+        answer:
+          "Older ZIPs protect the file data but leave the filenames readable, so the contents can be listed with no password at all — useful for confirming you have the right archive. Modern AES archives encrypt the names too, so nothing is visible until the password is recovered.",
+      },
+      {
+        question: "Is this legal to use?",
+        answer:
+          "On an archive of your own, yes, and that is what it is for. Taking the protection off someone else's file is a different act and is usually unlawful regardless of the tool used.",
+      },
+      {
+        question: "Does it send my file anywhere?",
+        answer:
+          "No. The ZIP is read by your browser and decrypted in the same tab, exactly like every other tool here. There is no upload step and no server to receive it.",
+      },
+      {
+        question: "Why not attack the encryption directly?",
+        answer:
+          "Because that is a different kind of tool. The legacy scheme has a known weakness that makes it breakable far more broadly than recovering a password you forgot, and building that is out of scope for this site — the position is set out in the YouTube policy note and applies here too.",
+      },
+    ],
+    related: ["password-generator", "hash-generator", "base64-encoder", "json-formatter"],
+  },
 ] as const;

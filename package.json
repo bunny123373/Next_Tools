@@ -30,6 +30,7 @@
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
     "@noble/hashes": "2.4.0",
+    "@zip.js/zip.js": "^2.23.0",
     "clsx": "^2.1.1",
     "gifenc": "1.0.3",
     "jszip": "3.10.2",

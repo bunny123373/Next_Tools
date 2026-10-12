@@ -75,6 +75,7 @@ export const WORKSPACES: Record<string, WorkspaceComponent> = {
   "url-encoder": dynamic(() => import("./developer/UrlEncoderWorkspace")),
   "uuid-generator": dynamic(() => import("./developer/UuidGeneratorWorkspace")),
   "xml-formatter": dynamic(() => import("./developer/XmlFormatterWorkspace")),
+  "zip-password-recovery": dynamic(() => import("./developer/ZipPasswordRecovery")),
 
   // image
   "color-extractor": dynamic(() => import("./image/ColorExtractorWorkspace")),
