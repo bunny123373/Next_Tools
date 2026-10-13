@@ -4,14 +4,14 @@
 
 ### Everything you need. One simple toolbox.
 
-**105 browser-based utility tools** — image, PDF, video, audio, text, AI and developer —
+**107 browser-based utility tools** — image, PDF, video, audio, text, AI and developer —
 built with Next.js 16, TypeScript and Tailwind CSS v4.
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.3.6-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19.3-087ea4?style=for-the-badge&logo=react&logoColor=white)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Tools](https://img.shields.io/badge/Tools-105-ff3b30?style=for-the-badge&logo=googlechrome&logoColor=white)](#-whats-inside)
+[![Tools](https://img.shields.io/badge/Tools-107-ff3b30?style=for-the-badge&logo=googlechrome&logoColor=white)](#-whats-inside)
 [![Typecheck](https://img.shields.io/badge/typecheck-0_errors-22c55e?style=for-the-badge&logo=typescript&logoColor=white)](#-quality-gates)
 [![License: MIT](https://img.shields.io/badge/License-MIT-f59e0b?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 
@@ -65,9 +65,9 @@ No tool animates a fabricated percentage toward 100%.
 
 | ✍️ **Text** | 🧑‍💻 **Developer** | 🤖 **AI** |
 | :---: | :---: | :---: |
-| **13 tools** | **26 tools** | **13 tools** |
+| **15 tools** | **26 tools** | **13 tools** |
 | Count, case, clean up | JSON, JWT, regex | Chat, rewrite, translate |
-| Diff, sort, replace | Base64, UUID, hash | Summarise, generate images |
+| Diff, resume, ATS check | Base64, UUID, hash | Summarise, generate images |
 
 </div>
 
@@ -271,7 +271,7 @@ fixed elements clear the notch and the home indicator, and tap targets are at le
 | Lint | `npm run lint` | clean on all files touched by the tool contract |
 | Build | `npm run build` | 133 prerendered routes |
 | Routes | `node scripts/check-routes.mjs` | 20 static + 113 tool routes as expected |
-| Registry | `npm run check:workspaces` | 105 tools, every one with a workspace, and vice versa |
+| Registry | `npm run check:workspaces` | 107 tools, every one with a workspace, and vice versa |
 | Mobile | `npm run check:mobile` | safe-area insets, 16px inputs, sticky composer, tap targets |
 | Composer | `npm run check:focus` | the shared control's focus ring is provably cancelled |
 | README | `npm run check:readme` | every table-of-contents anchor resolves |

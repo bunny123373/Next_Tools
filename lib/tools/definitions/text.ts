@@ -812,4 +812,133 @@ export const TEXT_TOOLS: readonly Tool[] = [
     ],
     related: ["remove-duplicate-lines", "text-diff", "case-converter", "text-cleaner"],
   },
+  {
+    id: "resume-builder",
+    name: "Resume Builder",
+    slug: "resume-builder",
+    category: "text",
+    description:
+      "Build a resume from a form and export it as a real, selectable-text PDF that applicant tracking systems can read. Draft saved in your browser only.",
+    intro:
+      "Fill in your details and export a properly structured PDF — real text, not a picture of text, which is what most resume tools hand you and what most ATS systems silently discard.",
+    icon: "FileText",
+    keywords: [
+      "resume builder",
+      "cv maker",
+      "resume generator",
+      "ats resume",
+      "create resume",
+      "resume pdf",
+      "curriculum vitae",
+    ],
+    route: "/tools/text/resume-builder",
+    processing: "local",
+    status: "stable",
+    addedOn: "2026-10-13",
+    actionLabel: "Build PDF",
+    features: [
+      "Exports a genuine text-layer PDF — the text is selectable and searchable, so an ATS can read it",
+      "Draft autosaves to this browser only, so a refresh does not lose an hour of typing",
+      "A4 or Letter, three accent colours, and page breaks handled for long histories",
+      "AI helpers for tightening a bullet and drafting a summary, which are optional and clearly marked",
+      "AI is instructed never to invent an employer, date or figure — check what it changed before keeping it",
+      "Works entirely offline, so nothing about you is uploaded anywhere",
+    ],
+    howItWorks: [
+      "Fill in your contact details, summary, roles, education, projects and skills.",
+      "Optional: use the AI buttons to tighten a bullet or draft a summary.",
+      "Pick a page size and accent, then press Build PDF.",
+      "Download the PDF, or paste the text into the Resume Analyser to check it.",
+    ],
+    faq: [
+      {
+        question: "Why does this not use a template image?",
+        answer:
+          "Because an image-based PDF has no text layer, and applicant tracking systems read the text layer. A resume that looks perfect and cannot be read scores zero. This one writes positioned text, so it is both printable and machine-readable.",
+      },
+      {
+        question: "Where is my resume stored?",
+        answer:
+          "In this browser's localStorage, and nowhere else. Clearing site data removes it. Nothing is uploaded, which is also why there is no account — there is nothing to attach one to.",
+      },
+      {
+        question: "Will the AI invent things about me?",
+        answer:
+          "It is instructed not to, and the prompt explicitly says to keep every fact and invent nothing. Models are not reliable though — read every suggestion before you keep it, and treat any figure it produces as a claim to verify.",
+      },
+      {
+        question: "Can it produce a DOCX instead?",
+        answer:
+          "No. It produces PDF, which is the format most applications actually request. Generating DOCX properly needs a different library and is not built here.",
+      },
+      {
+        question: "How long should a resume be?",
+        answer:
+          "One page for under about ten years of experience, two after that. This builder paginates rather than compressing your type to fit, so trim content instead of shrinking the font.",
+      },
+    ],
+    related: ["resume-analyser", "pdf-to-text", "markdown-to-html", "text-cleaner"],
+  },
+  {
+    id: "resume-analyser",
+    name: "Resume Analyser",
+    slug: "resume-analyser",
+    category: "text",
+    description:
+      "Check a resume against what applicant tracking systems look for: missing contact fields, absent section headings, unquantified bullets, and real readability measurements.",
+    intro:
+      "Paste a resume or drop in your PDF and get a list of specific, checkable findings — plus optional keyword comparison against a real job advert. No score out of ten.",
+    icon: "Search",
+    keywords: [
+      "resume analyser",
+      "resume checker",
+      "ats check",
+      "ats score",
+      "resume review",
+      "job description match",
+      "resume keywords",
+    ],
+    route: "/tools/text/resume-analyser",
+    processing: "local",
+    status: "stable",
+    addedOn: "2026-10-13",
+    actionLabel: "Analyse",
+    features: [
+      "Checks the fields an ATS screens on before a human sees anything — email, phone, location",
+      "Looks for the standard section headings parsers look for literally, not clever alternatives",
+      "Counts how many bullets carry a number, which is what makes an achievement checkable",
+      "Real measurements: word count, sentence length, reading ease and an approximate grade level",
+      "Optional keyword overlap against a specific job advert, with the missing terms listed",
+      "A scanned PDF is reported as such, because that is exactly what an ATS will also see",
+    ],
+    howItWorks: [
+      "Paste your resume text, or load the PDF — the text layer is read directly.",
+      "Press Analyse for the structural checks and the measurements.",
+      "Optionally paste a job advert and press Compare for keyword overlap.",
+      "Work down the findings — each one names the specific thing to change.",
+    ],
+    faq: [
+      {
+        question: "Where is the score out of 100?",
+        answer:
+          "Deliberately absent. A single number is a weighted sum of somebody's private opinions presented as a measurement, and people make decisions on it. You get findings you can verify and figures that came from counting your own text instead.",
+      },
+      {
+        question: "How accurate is the reading-ease score?",
+        answer:
+          "It is an estimate. The syllable counter counts vowel groups, which is the standard approximation and is good to about one syllable — but it struggles with technical words like Kubernetes. Treat it as a rough guide.",
+      },
+      {
+        question: "The match percentage says 80% but the role is wrong. Why?",
+        answer:
+          "Because it is bag-of-words overlap. It cannot tell that the advert wants eight years of experience and your resume says three, or that a keyword appears in a sentence where you did not actually do that. It tells you whether words are present, nothing more.",
+      },
+      {
+        question: "Does it send my resume anywhere?",
+        answer:
+          "No, unless you press the AI critique button, which sends the text to your configured model provider. Every other check runs entirely in this tab. The notice says which is which.",
+      },
+    ],
+    related: ["resume-builder", "pdf-to-text", "word-counter", "reading-time"],
+  },
 ];
