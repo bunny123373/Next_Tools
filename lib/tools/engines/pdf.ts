@@ -826,7 +826,7 @@ async function decodeImageXObject(
   const raw = stream.contents;
   if (raw.length === 0) return null;
 
-  const { PDFArray, PDFName, PDFNumber, decodePDFRawStream } = pdfjs;
+  const { PDFArray, PDFName, decodePDFRawStream } = pdfjs;
   const width = asNumber(stream.dict.get(PDFName.of("Width")), pdfjs);
   const height = asNumber(stream.dict.get(PDFName.of("Height")), pdfjs);
   if (!width || !height || width <= 0 || height <= 0) return null;
@@ -977,7 +977,7 @@ function findImageCandidates(
   pdfjs: typeof import("pdf-lib"),
   masks: Set<string>,
 ): ImageCandidate[] {
-  const { PDFName, PDFNumber } = pdfjs;
+  const { PDFName } = pdfjs;
   const found = new Map<string, ImageCandidate>();
 
   for (const [ref, object] of doc.context.enumerateIndirectObjects()) {
@@ -1088,7 +1088,7 @@ export async function compressPdf(
   onProgress?: (progress: CompressProgress) => void,
 ): Promise<{ blob: Blob; report: CompressReport }> {
   const pdfjs = await loadPdfLib();
-  const { PDFArray, PDFDict, PDFName, PDFNumber, PDFRawStream } = pdfjs;
+  const { PDFDict, PDFName, PDFNumber, PDFRawStream } = pdfjs;
 
   onProgress?.({ phase: "reading", ratio: null, detail: "Reading the document" });
   const bytesBefore = source.size;
@@ -1505,7 +1505,7 @@ export async function rotatePdfPages(
   indices: number[] | "all",
   angle: RotateAngle,
 ): Promise<{ blob: Blob; pageCount: number; rotated: number }> {
-  const { PDFDocument, degrees } = await loadPdfLib();
+  const { degrees } = await loadPdfLib();
   const doc = await loadPdfDocument(file);
   const pages = doc.getPages();
   const targets = indices === "all" ? pages.map((_, index) => index) : indices;
@@ -1589,7 +1589,7 @@ export async function addPageNumbers(
   file: File,
   options: PageNumberOptions,
 ): Promise<{ blob: Blob; pageCount: number; numbered: number }> {
-  const { PDFDocument, StandardFonts, rgb, degrees } = await loadPdfLib();
+  const { StandardFonts, rgb, degrees } = await loadPdfLib();
   const doc = await loadPdfDocument(file);
   const pages = doc.getPages();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -1702,7 +1702,7 @@ export async function addWatermark(
   file: File,
   options: WatermarkOptions,
 ): Promise<{ blob: Blob; pageCount: number; watermarked: number }> {
-  const { PDFDocument, StandardFonts, rgb, degrees } = await loadPdfLib();
+  const { StandardFonts, rgb, degrees } = await loadPdfLib();
   const doc = await loadPdfDocument(file);
   const pages = doc.getPages();
   const font = await doc.embedFont(StandardFonts.Helvetica);

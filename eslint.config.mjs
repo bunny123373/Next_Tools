@@ -27,6 +27,8 @@ const config = [
       // Throwaway typecheck/probe harnesses.
       "smoke*.ts",
       "**/*.diag.ts",
+      // Gitignored scratch directory for probe scripts and diagnostics.
+      "tmp/**",
     ],
   },
   ...next,

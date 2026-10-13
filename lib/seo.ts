@@ -21,7 +21,6 @@ function clampDescription(text: string): string {
  * the tool specifically — no shared boilerplate, no keyword stuffing.
  */
 export function getToolMetadata(tool: Tool): Metadata {
-  const category = CATEGORY_MAP[tool.category];
   const url = absoluteUrl(tool.route);
   const description = clampDescription(tool.description);
   const keywords = Array.from(

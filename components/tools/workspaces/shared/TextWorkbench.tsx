@@ -87,7 +87,7 @@ export function TextWorkbench({
   rows = 14,
 }: TextWorkbenchProps) {
   const outputText = result?.tabs?.length ? result.text : (result?.text ?? "");
-  const [copied, setCopied] = React.useState(false);
+  const [, setCopied] = React.useState(false);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const outputRef = React.useRef<HTMLDivElement>(null);
 
@@ -256,7 +256,7 @@ export function TextWorkbench({
               />
               <div className="min-w-0">
                 <p className="text-[13px] font-medium text-[var(--text-ink)]">
-                  We couldn't process this input.
+                  We couldn&rsquo;t process this input.
                 </p>
                 <p className="mt-0.5 break-words text-xs leading-relaxed text-[var(--text-muted)]">
                   {result.error}
@@ -281,7 +281,7 @@ export function TextWorkbench({
           ) : (
             <div className="rounded-[10px] border border-[var(--surface-line)] bg-[var(--surface-card-2)]">
               <ToolEmptyState
-                title={hideInput ? "Click generate to get started." : "Your result will appear here."}
+                title={hideInput ? "Click generate to get started." : outputPlaceholder}
                 description={
                   hideInput
                     ? undefined

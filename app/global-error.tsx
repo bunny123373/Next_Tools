@@ -5,7 +5,6 @@
  * must render its own <html>/<body>.
  */
 export default function GlobalError({
-  error,
   reset,
 }: {
   error: Error & { digest?: string };

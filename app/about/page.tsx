@@ -40,7 +40,7 @@ export default function AboutPage() {
           tools that do that should just do it.
         </p>
 
-        <h2>What "browser-based" actually means here</h2>
+        <h2>What &ldquo;browser-based&rdquo; actually means here</h2>
         <p>
           Of the {TOOL_COUNT} tools, {PLATFORM_STATS.browserBased} process your files entirely on
           your own device using the Canvas, Web Audio, WebCodecs and Web Crypto APIs. Nothing is

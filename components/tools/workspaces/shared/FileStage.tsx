@@ -7,7 +7,7 @@ import { toast } from "@/lib/utils/toast";
 import { SITE } from "@/lib/site";
 import { sumSizes, type FileCategory } from "@/lib/utils/files";
 import { formatBytes } from "@/lib/utils/format";
-import { useFiles } from "@/lib/hooks";
+
 import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/tools/FileDropzone";
 import { ProgressBar, type ProcessingStage } from "@/components/tools/ProgressBar";

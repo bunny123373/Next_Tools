@@ -40,7 +40,7 @@ export default function AdminToolsPage() {
 
       {missingWorkspaces.length > 0 ? (
         <Notice tone="warning" title={`${missingWorkspaces.length} tool(s) have no workspace component.`}>
-          These tools render a "workspace not registered" panel. Add a line to{" "}
+          These tools render a &ldquo;workspace not registered&rdquo; panel. Add a line to{" "}
           <code className="font-mono text-[12px]">components/tools/workspaces/registry.tsx</code>:{" "}
           {missingWorkspaces.slice(0, 6).map((tool) => tool.id).join(", ")}
           {missingWorkspaces.length > 6 ? "…" : ""}

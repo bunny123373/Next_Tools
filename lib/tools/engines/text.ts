@@ -789,12 +789,7 @@ const BACON_SENTENCES: readonly string[] = [
   "Lo, the gravy ran freely, and the company forgave everything, which is the surest sign of a well-cooked dish.",
 ];
 
-const BACON_WORDS: readonly string[] = [
-  "bacon", "ham", "gammon", "larder", "kitchen", "pantry", "skillet", "brisket", "crust",
-  "gravy", "sauce", "salt", "pepper", "crumb", "oven", "hearth", "spit", "knife", "plate",
-  "table", "supper", "breakfast", "tavern", "ale", "stout", "pudding", "sausage", "fat",
-  "crust", "dripping", "savoury", "tinder", "peasant", "kitchen", "servant",
-];
+
 
 export type LoremCorpus = "lorem" | "bacon" | "custom";
 export type LoremMode = "per-paragraph" | "total";

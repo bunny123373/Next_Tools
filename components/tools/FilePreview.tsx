@@ -3,7 +3,7 @@
 import * as React from "react";
 import { FileAudio, FileImage, FileText, FileVideo, Music } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { formatBytes, formatDuration } from "@/lib/utils/format";
+import { formatBytes } from "@/lib/utils/format";
 import { getExtension } from "@/lib/utils/files";
 import { Badge } from "@/components/ui/badge";
 import { useObjectUrl } from "@/lib/hooks";

@@ -390,7 +390,7 @@ export default function ImageGrayscaleWorkspace() {
             {grew ? (
               <Notice tone="warning">
                 The grayscale file is {formatBytes(result.blob.size - result.source.size)} larger
-                than the source. Dropping colour barely changes a lossy file's size — use the Image
+                than the source. Dropping colour barely changes a lossy file&rsquo;s size — use the Image
                 Compressor if you need it smaller.
               </Notice>
             ) : null}

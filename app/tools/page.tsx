@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { ToolsBrowser } from "@/components/tools/ToolsBrowser";
 import { CATEGORIES, PLATFORM_STATS, TOOLS, TOOL_COUNT } from "@/lib/tools/registry";
-import { breadcrumbJsonLd, clampDescription } from "@/lib/seo";
+import { clampDescription } from "@/lib/seo";
 import { JsonLd } from "@/components/layout/JsonLd";
 import { SITE } from "@/lib/site";
 

@@ -7,7 +7,7 @@ import { ToolCard } from "@/components/tools/ToolCard";
 import { ToolsBrowser } from "@/components/tools/ToolsBrowser";
 import { JsonLd } from "@/components/layout/JsonLd";
 import { CATEGORY_MAP, CATEGORY_ORDER, getToolsByCategory } from "@/lib/tools/registry";
-import { breadcrumbJsonLd, categoryJsonLd, getCategoryMetadata } from "@/lib/seo";
+import { categoryJsonLd, getCategoryMetadata } from "@/lib/seo";
 import { SITE } from "@/lib/site";
 import type { ToolCategory } from "@/lib/tools/types";
 

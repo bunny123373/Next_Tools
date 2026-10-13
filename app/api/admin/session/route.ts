@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { apiError, apiOk, parseJson, withErrorHandling } from "@/lib/api/respond";
-import { LIMITS, rateLimit, rateLimitHeaders } from "@/lib/api/rate-limit";
+import { rateLimit, rateLimitHeaders } from "@/lib/api/rate-limit";
 import {
   clearAdminSession,
   createAdminSession,

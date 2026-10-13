@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { FavoritesClient } from "@/components/user/FavoritesClient";
-import { RecentClient } from "@/components/user/RecentClient";
+
 import { PrivacyNote } from "@/components/tools/ToolShell";
 import { clampDescription } from "@/lib/seo";
 

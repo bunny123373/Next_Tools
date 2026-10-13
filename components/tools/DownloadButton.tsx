@@ -146,7 +146,6 @@ export function CopyButton({
 export function OpenButton({
   blob,
   dataUrl,
-  filename,
   size = "sm",
   variant = "secondary",
   className,
